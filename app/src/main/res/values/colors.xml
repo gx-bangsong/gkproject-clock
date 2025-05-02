@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 新增通知栏颜色 -->
+    <color name="notification_background">#333333</color>
+    <!-- 其他颜色 -->
+    ...
+</resources>
