@@ -2,72 +2,44 @@ package com.gkprojct.clock // <-- 确保包路径正确
 
 
 // Import shared definitions (ensure you import what's needed)
-// 确保这些导入存在
-// Import screen composable (IDE usually handles this, uncomment if needed)
-// 如果这些文件在同一个包下且被直接使用，请取消注释
-
-
-// --- 导入 Room 相关类 (从 com.gkprojct.clock.vm 包导入) ---
+// Import screen composables (IDE usually handles this, uncomment if needed)
+// Import RuleCriteria (Needed for state)
+// Import RuleAlarmSelectionScreen and RuleCriteriaDefinitionScreen
 import android.content.Context
 import android.os.Build
-import android.os.Bundle
 import android.util.Log
-import androidx.activity.ComponentActivity
-import androidx.activity.compose.setContent
 import androidx.annotation.RequiresApi
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Icon
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
-import androidx.core.content.edit
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.gkprojct.clock.ui.theme.ClockTheme
 import com.gkprojct.clock.vm.AppDatabase
+import java.time.DayOfWeek
 import java.util.UUID
+import java.util.Calendar // Add Calendar import
+import java.time.DayOfWeek // Ensure DayOfWeek is imported
+import java.util.UUID // Ensure UUID is imported
 
-// ------------------------------------------------------
 
-
-class MainActivity : ComponentActivity() {
-    @RequiresApi(Build.VERSION_CODES.R)
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        setContent {
-            ClockTheme {
-                AppContent()
-            }
-        }
-    }
-}
-
-// 定义一个枚举类来表示 Settings 内部的屏幕类型 (Keep this)
+// 定义一个枚举类来表示 Settings 内部的屏幕类型 (添加闹钟选择和条件配置)
 enum class SettingsScreenType {
-    Main, CalendarSelection, RuleManagement, AddEditRule, RuleCalendarSelection, RuleAlarmSelection, RuleCriteriaDefinition
+    Main, CalendarSelection, RuleManagement, AddEditRule, RuleCalendarSelection, RuleAlarmSelection, RuleCriteriaDefinition // <-- **新增 RuleAlarmSelection 和 RuleCriteriaDefinition**
 }
-
 @Composable
 fun AppContent() {
     val context = LocalContext.current
 
-    // 获取数据库实例和 RuleDao (从 vm 包导入)
+    // 获取数据库实例和 RuleDao (Keep this)
     val database = remember { AppDatabase.getDatabase(context) }
     val ruleDao = remember { database.ruleDao() }
 
-    // 创建 RuleViewModel 实例 (从 vm 包导入)
+    // 创建 RuleViewModel 实例 (Keep this)
     val ruleViewModel: RuleViewModel = viewModel(
         factory = RuleViewModelFactory(ruleDao)
     )
@@ -87,21 +59,19 @@ fun AppContent() {
     var showSettingsScreen by remember { mutableStateOf(false) }
     var currentSettingsScreen by remember { mutableStateOf(SettingsScreenType.Main) }
 
-    // --- 状态：存储当前正在编辑的规则对象 --- (Keep this)
+    // --- 新增状态：存储当前正在编辑的规则对象 --- (Keep this)
     var ruleToEdit by remember { mutableStateOf<Rule?>(null) }
     // ----------------------------------------
 
-    // --- 状态：存储当前规则已选中的日历 ID 集合 (用于在导航时传递) --- (Keep this)
-    // 确保 emptySet() 在这里能正确推断类型为 Set<Long>
+    // --- 新增状态：存储当前规则已选中的日历 ID 集合 (用于在导航到 CalendarSelectionScreen 时传递) --- (Keep this)
     var currentRuleSelectedCalendarIds by remember { mutableStateOf<Set<Long>>(emptySet()) }
     // ---------------------------------------------------------------------------------------
 
-    // --- 状态：存储当前规则已选择的应用闹钟 ID 集合 (用于在导航时传递) --- (Keep this)
-    // 确保 emptySet() 在这里能正确推断类型为 Set<UUID>
+    // --- 新增状态：存储当前规则已选择的应用闹钟 ID 集合 (用于在导航时传递) ---
     var currentRuleSelectedAlarmIds by remember { mutableStateOf<Set<UUID>>(emptySet()) }
     // -----------------------------------------------------------------------
 
-    // --- 状态：存储当前规则条件 (用于在导航时传递) --- (Keep this)
+    // --- 新增状态：存储当前规则条件 (用于在导航时传递) ---
     var currentRuleCriteria by remember { mutableStateOf<RuleCriteria>(RuleCriteria.AlwaysTrue) } // 初始化为默认条件
     // ---------------------------------------------------
 
@@ -113,14 +83,13 @@ fun AppContent() {
     // 函数：保存选中的日历 ID 列表 (Keep this)
     val saveSelectedCalendarIds: (List<Long>) -> Unit = { selectedIds ->
         val idSet = selectedIds.map { it.toString() }.toSet()
-        sharedPreferences.edit { putStringSet("selectedCalendarIds", idSet) }
+        sharedPreferences.edit().putStringSet("selectedCalendarIds", idSet).apply()
         // TODO: Add confirmation message (e.g., Toast)
         Log.d("CalendarPrefs", "Saved selected calendar IDs: $selectedIds")
     }
 
     // 函数：加载之前保存的日历 ID 列表 (Keep this)
     val loadSelectedCalendarIds: () -> Set<Long> = {
-        // 确保 emptySet() 在这里能正确推断类型为 Set<Long>
         sharedPreferences.getStringSet("selectedCalendarIds", emptySet())?.map { it.toLong() }?.toSet() ?: emptySet()
     }
     // --- 在需要显示 SettingsScreen 的时候加载选中的日历 ID --- (Keep this)
@@ -128,8 +97,7 @@ fun AppContent() {
         if (showSettingsScreen) { // 只有在进入 Settings 区域时才加载
             loadSelectedCalendarIds()
         } else {
-            // 确保 emptySet() 在这里能正确推断类型为 Set<Long>
-            emptySet()
+            emptySet() // 不在 Settings 区域时，无需加载或清空
         }
     }
     // -------------------------------------------------------
@@ -137,6 +105,7 @@ fun AppContent() {
     LaunchedEffect(showSettingsScreen) {
         Log.d("NavigationDebug", "showSettingsScreen changed to: $showSettingsScreen")
     }
+    // --- 监听 ruleToEdit 变化并更新相关状态 ---
     LaunchedEffect(ruleToEdit) {
         // 当 ruleToEdit 变化时，更新 currentRuleSelectedCalendarIds, currentRuleSelectedAlarmIds, currentRuleCriteria
         // 这确保在进入编辑模式时，UI 状态与要编辑的规则同步
@@ -146,15 +115,47 @@ fun AppContent() {
             currentRuleCriteria = it.criteria
         } ?: run {
             // 如果 ruleToEdit 为 null (添加模式)，重置状态
-            currentRuleSelectedCalendarIds = emptySet() // 确保 emptySet() 在这里能正确推断类型为 Set<Long>
-            currentRuleSelectedAlarmIds = emptySet() // 确保 emptySet() 在这里能正确推断类型为 Set<UUID>
+            currentRuleSelectedCalendarIds = emptySet()
+            currentRuleSelectedAlarmIds = emptySet()
             currentRuleCriteria = RuleCriteria.AlwaysTrue
         }
     }
+    // -------------------------------------------
 
 
-    // --- **移除硬编码的 sampleAlarms 列表** ---
-    // val sampleAlarms = remember { ... } // REMOVE THIS BLOCK
+    // --- 创建示例 Alarm 数据列表 (Corrected to match Alarm data class) ---
+    val sampleAlarms = remember {
+        listOf(
+            Alarm(
+                id = UUID.randomUUID(),
+                time = Calendar.getInstance().apply { set(Calendar.HOUR_OF_DAY, 7); set(Calendar.MINUTE, 0) }, // Keep Calendar
+                label = "起床闹钟", // String? is correct
+                isEnabled = true, // Boolean is correct
+                repeatingDays = setOf(DayOfWeek.MONDAY, DayOfWeek.TUESDAY, DayOfWeek.WEDNESDAY, DayOfWeek.THURSDAY, DayOfWeek.FRIDAY) // Set<DayOfWeek> is correct
+            ),
+            Alarm(
+                id = UUID.randomUUID(),
+                time = Calendar.getInstance().apply { set(Calendar.HOUR_OF_DAY, 12); set(Calendar.MINUTE, 30) }, // Keep Calendar
+                label = "午休闹钟", // String? is correct
+                isEnabled = false, // Boolean is correct
+                repeatingDays = emptySet() // Set<DayOfWeek> is correct
+            ),
+            Alarm(
+                id = UUID.randomUUID(),
+                time = Calendar.getInstance().apply { set(Calendar.HOUR_OF_DAY, 15); set(Calendar.MINUTE, 0) }, // Keep Calendar
+                label = "会议提醒", // String? is correct
+                isEnabled = true, // Boolean is correct
+                repeatingDays = setOf(DayOfWeek.MONDAY, DayOfWeek.WEDNESDAY, DayOfWeek.FRIDAY) // Set<DayOfWeek> is correct
+            ),
+            Alarm(
+                id = UUID.randomUUID(),
+                time = Calendar.getInstance().apply { set(Calendar.HOUR_OF_DAY, 18); set(Calendar.MINUTE, 0) }, // Keep Calendar
+                label = "健身闹钟", // String? is correct
+                isEnabled = true, // Boolean is correct
+                repeatingDays = setOf(DayOfWeek.SATURDAY, DayOfWeek.SUNDAY) // Set<DayOfWeek> is correct
+            ),
+        )
+    }
     // ------------------------------------------
 
 
@@ -169,11 +170,11 @@ fun AppContent() {
                             onClick = {
                                 currentScreenIndex = index
                                 // Note: This logic is only relevant if the bottom bar is visible (i.e., setup complete)
-                                bedtimeSetupStep = if (index == 4) { // No need to check !isBedtimeSetupComplete here due to bottom bar visibility
-                                    3 // Go directly to main BedtimeScreen if bottom bar is visible
+                                if (index == 4) { // No need to check !isBedtimeSetupComplete here due to bottom bar visibility
+                                    bedtimeSetupStep = 3 // Go directly to main BedtimeScreen if bottom bar is visible
                                 } else {
                                     // For other tabs, ensure the step is not stuck on setup steps
-                                    3 // Or a value indicating main screen
+                                    bedtimeSetupStep = 3 // Or a value indicating main screen
                                 }
 
                             },
@@ -199,20 +200,19 @@ fun AppContent() {
             if (showSettingsScreen) {
                 when (currentSettingsScreen) {
                     SettingsScreenType.Main -> SettingsScreen(
-                        onBackClick = { showSettingsScreen = false }, // 返回主界面
-                        onSelectCalendarClick = { currentSettingsScreen = SettingsScreenType.CalendarSelection }, // 导航到日历选择
-                        onManageRulesClick = { currentSettingsScreen = SettingsScreenType.RuleManagement }, // 导航到规则管理
-                        onCalendarsSelectionDone = saveSelectedCalendarIds, // <-- 将保存函数传递下去
-                        initialSelectedCalendarIds = initiallySelectedCalendarIds // <-- **将加载的 ID 传递给 SettingsScreen**
-
+                        onBackClick = { showSettingsScreen = false },
+                        onSelectCalendarClick = { currentSettingsScreen = SettingsScreenType.CalendarSelection },
+                        onManageRulesClick = { currentSettingsScreen = SettingsScreenType.RuleManagement },
+                        onCalendarsSelectionDone = saveSelectedCalendarIds,
+                        initialSelectedCalendarIds = initiallySelectedCalendarIds
                     )
                     // CalendarSelection 的 Case (Keep this)
                     SettingsScreenType.CalendarSelection -> CalendarSelectionScreen(
                         onBackClick = {
-                            currentSettingsScreen = if (currentSettingsScreen == SettingsScreenType.RuleCalendarSelection) {
-                                SettingsScreenType.AddEditRule
+                            if (currentSettingsScreen == SettingsScreenType.RuleCalendarSelection) {
+                                currentSettingsScreen = SettingsScreenType.AddEditRule
                             } else {
-                                SettingsScreenType.Main
+                                currentSettingsScreen = SettingsScreenType.Main
                             }
                         },
                         onCalendarsSelected = { selectedIds ->
@@ -225,175 +225,112 @@ fun AppContent() {
                                 currentSettingsScreen = SettingsScreenType.Main
                             }
                         },
+                        // 根据当前是主设置还是规则设置来传递不同的初始选中 ID
                         initialSelectedCalendarIds = if (currentSettingsScreen == SettingsScreenType.RuleCalendarSelection) {
                             currentRuleSelectedCalendarIds
                         } else {
                             initiallySelectedCalendarIds
                         }
                     )
+                    // RuleManagement 的 Case (Keep this)
                     SettingsScreenType.RuleManagement -> RuleManagementScreen(
-                        onBackClick = { currentSettingsScreen = SettingsScreenType.Main }, // 返回主设置界面
+                        onBackClick = { currentSettingsScreen = SettingsScreenType.Main },
                         onAddRuleClick = {
-                            // 添加规则：设置 ruleToEdit 为 null，导航到 AddEditRuleScreen
-                            ruleToEdit = null
-                            // 在 LaunchedEffect 中处理状态重置
+                            ruleToEdit = null // 清空编辑状态，表示添加新规则
                             currentSettingsScreen = SettingsScreenType.AddEditRule
-                            Log.d("NavigationDebug", "MainActivity: Add Rule Clicked")
                         },
                         onRuleClick = { rule ->
-                            // 编辑规则：设置 ruleToEdit 为点击的规则，导航到 AddEditRuleScreen
-                            ruleToEdit = rule // 保存要编辑的规则
-                            // 在 LaunchedEffect 中处理状态加载
+                            ruleToEdit = rule // 设置要编辑的规则
                             currentSettingsScreen = SettingsScreenType.AddEditRule
-                            Log.d("NavigationDebug", "MainActivity: Rule Clicked: ${rule.name}, ID: ${rule.id}")
                         },
-                        ruleViewModel = ruleViewModel // 传递 ViewModel
+                        ruleViewModel = ruleViewModel // <-- **传递 ViewModel**
                     )
-                    // AddEditRule 的 Case (Keep this)
-                    SettingsScreenType.AddEditRule -> {
-                        AddEditRuleScreen(
-                            initialRule = ruleToEdit, // 传递要编辑的规则 (添加模式时为 null)
-                            onSaveRule = { savedRule ->
-                                // 在保存规则前，将最新的选择和条件更新到规则对象中
-                                val ruleWithUpdatedConfig = savedRule.copy(
-                                    calendarIds = currentRuleSelectedCalendarIds,
-                                    targetAlarmIds = currentRuleSelectedAlarmIds,
-                                    criteria = currentRuleCriteria
-                                )
-                                ruleViewModel.saveRule(ruleWithUpdatedConfig) // 调用 ViewModel 保存规则
-                                Log.d("NavigationDebug", "MainActivity: Rule Saved: ${ruleWithUpdatedConfig.name}, ID: ${ruleWithUpdatedConfig.id}, Calendars: ${ruleWithUpdatedConfig.calendarIds}, Alarms: ${ruleWithUpdatedConfig.targetAlarmIds}, Criteria: ${ruleWithUpdatedConfig.criteria}")
-                                currentSettingsScreen = SettingsScreenType.RuleManagement // 保存后返回规则管理界面
-                                ruleToEdit = null // 清空编辑状态，LaunchedEffect 会重置其他状态
-                            },
-                            onCancel = {
-                                // 取消后返回规则管理界面
-                                currentSettingsScreen = SettingsScreenType.RuleManagement
-                                ruleToEdit = null // 清空编辑状态，LaunchedEffect 会重置其他状态
-                            },
-                            ruleViewModel = ruleViewModel, // 传递 ViewModel
-                            onSelectCalendarsClick = { currentSelectedIds ->
-                                currentRuleSelectedCalendarIds = currentSelectedIds
-                                currentSettingsScreen = SettingsScreenType.RuleCalendarSelection
-                                Log.d("NavigationDebug", "MainActivity: Navigating to Rule Calendar Selection with IDs: $currentSelectedIds")
-                            },
-                            // --- 处理选择应用闹钟回调 ---
-                            onSelectAlarmsClick = { currentSelectedIds ->
-                                currentRuleSelectedAlarmIds = currentSelectedIds // 保存当前已选中的闹钟 ID
-                                currentSettingsScreen = SettingsScreenType.RuleAlarmSelection // <-- **导航到规则闹钟选择界面**
-                                Log.d("NavigationDebug", "MainActivity: Navigating to Rule Alarm Selection with IDs: $currentSelectedIds")
-                            },
-                            // --- 处理定义规则条件回调 ---
-                            onDefineCriteriaClick = { currentCriteria ->
-                                currentRuleCriteria = currentCriteria
-                                currentSettingsScreen = SettingsScreenType.RuleCriteriaDefinition
-                                Log.d("NavigationDebug", "MainActivity: Navigating to Rule Criteria Definition with criteria: $currentCriteria")
-                            }
-                        )
-                    }
-                    // --- RuleAlarmSelection 的 Case ---
-                    SettingsScreenType.RuleAlarmSelection -> {
-                        RuleAlarmSelectionScreen(
-                            availableAlarms = emptyList(), // <-- **暂时传递空列表，待实现真实闹钟加载**
-                            initialSelectedAlarmIds = currentRuleSelectedAlarmIds,
-                            onBackClick = {
-                                // 返回 AddEditRule 界面
-                                currentSettingsScreen = SettingsScreenType.AddEditRule
-                            },
-                            onAlarmsSelected = { selectedIds ->
-                                // 从闹钟选择界面返回时，更新 currentRuleSelectedAlarmIds 状态
-                                currentRuleSelectedAlarmIds = selectedIds.toSet() // <-- **更新闹钟选择状态**
-                                Log.d("NavigationDebug", "MainActivity: Rule Alarm Selection Done. Selected IDs: $selectedIds")
-                                // 返回 AddEditRule 界面
-                                currentSettingsScreen = SettingsScreenType.AddEditRule
-                            }
-                        )
-                    }
-                    // -------------------------------------
+                    // AddEditRule 的 Case (Corrected)
+                    SettingsScreenType.AddEditRule -> AddEditRuleScreen(
+                        initialRule = ruleToEdit, // Pass the rule to edit or null for add mode
+                        onSaveRule = { savedRule ->
+                            // ViewModel handles saving, just navigate back
+                            currentSettingsScreen = SettingsScreenType.RuleManagement
+                        },
+                        onCancel = { currentSettingsScreen = SettingsScreenType.RuleManagement }, // Use onCancel instead of onBackClick
+                        ruleViewModel = ruleViewModel, // Pass the ViewModel
+                        onSelectCalendarsClick = { currentIds -> // Lambda receives current IDs from AddEditRuleScreen state
+                            // Update state before navigating if needed, though AddEditRuleScreen manages its own state
+                            // currentRuleSelectedCalendarIds = currentIds // Not needed here, AddEditRuleScreen handles its state
+                            currentSettingsScreen = SettingsScreenType.RuleCalendarSelection
+                        },
+                        onSelectAlarmsClick = { currentIds -> // Lambda receives current IDs
+                            // currentRuleSelectedAlarmIds = currentIds // Not needed here
+                            currentSettingsScreen = SettingsScreenType.RuleAlarmSelection
+                        },
+                        onDefineCriteriaClick = { currentCriteria -> // Lambda receives current criteria
+                            // currentRuleCriteria = currentCriteria // Not needed here
+                            currentSettingsScreen = SettingsScreenType.RuleCriteriaDefinition
+                        }
+                        // Removed incorrect parameters: currentSelectedCalendarIds, currentSelectedAlarmIds, currentCriteria
+                    )
                     // RuleCalendarSelection 的 Case (Keep this)
-                    SettingsScreenType.RuleCalendarSelection -> {
-                        CalendarSelectionScreen(
-                            onBackClick = { currentSettingsScreen = SettingsScreenType.AddEditRule },
-                            onCalendarsSelected = { selectedIds ->
-                                currentRuleSelectedCalendarIds = selectedIds.toSet()
-                                Log.d("NavigationDebug", "MainActivity: Rule Calendar Selection Done. Selected IDs: $selectedIds")
-                                currentSettingsScreen = SettingsScreenType.AddEditRule
-                            },
-                            initialSelectedCalendarIds = currentRuleSelectedCalendarIds
-                        )
-                    }
-                    // RuleCriteriaDefinition 的 Case (Keep this)
-                    SettingsScreenType.RuleCriteriaDefinition -> {
-                        RuleCriteriaDefinitionScreen(
-                            initialCriteria = currentRuleCriteria,
-                            onBackClick = { currentSettingsScreen = SettingsScreenType.AddEditRule },
-                            onCriteriaSelected = { selectedCriteria ->
-                                currentRuleCriteria = selectedCriteria
-                                Log.d("NavigationDebug", "MainActivity: Rule Criteria Selected: $selectedCriteria")
-                                currentSettingsScreen = SettingsScreenType.AddEditRule
-                            }
-                        )
-                    }
+                    SettingsScreenType.RuleCalendarSelection -> CalendarSelectionScreen(
+                        onBackClick = { currentSettingsScreen = SettingsScreenType.AddEditRule },
+                        onCalendarsSelected = { selectedIds ->
+                            currentRuleSelectedCalendarIds = selectedIds.toSet()
+                            Log.d("NavigationDebug", "MainActivity: Rule Calendar Selection Done. Selected IDs: $selectedIds")
+                            currentSettingsScreen = SettingsScreenType.AddEditRule // 返回编辑屏幕
+                        },
+                        initialSelectedCalendarIds = currentRuleSelectedCalendarIds // 传递当前规则已选中的日历 ID
+                    )
+                    // --- **新增 RuleAlarmSelection 的 Case** ---
+                    SettingsScreenType.RuleAlarmSelection -> RuleAlarmSelectionScreen(
+                        availableAlarms = sampleAlarms, // <-- **传递可用的闹钟列表**
+                        initialSelectedAlarmIds = currentRuleSelectedAlarmIds, // 传递当前规则已选中的闹钟 ID
+                        onBackClick = { currentSettingsScreen = SettingsScreenType.AddEditRule },
+                        onAlarmsSelected = { selectedIds ->
+                            currentRuleSelectedAlarmIds = selectedIds
+                            Log.d("NavigationDebug", "MainActivity: Rule Alarm Selection Done. Selected IDs: $selectedIds")
+                            currentSettingsScreen = SettingsScreenType.AddEditRule // 返回编辑屏幕
+                        }
+                    )
+                    // --- **新增 RuleCriteriaDefinition 的 Case** ---
+                    SettingsScreenType.RuleCriteriaDefinition -> RuleCriteriaDefinitionScreen(
+                        initialCriteria = currentRuleCriteria, // 传递当前规则的条件
+                        onBackClick = { currentSettingsScreen = SettingsScreenType.AddEditRule },
+                        onCriteriaSelected = { selectedCriteria ->
+                            currentRuleCriteria = selectedCriteria
+                            Log.d("NavigationDebug", "MainActivity: Rule Criteria Definition Done. Selected Criteria: $selectedCriteria")
+                            currentSettingsScreen = SettingsScreenType.AddEditRule // 返回编辑屏幕
+                        }
+                    )
+                }
+            } else if (!isBedtimeSetupComplete) {
+                // Bedtime Setup Flow (Commented out as screens are missing)
+                /*
+                when (bedtimeSetupStep) {
+                    0 -> BedtimeWelcomeScreen(onNext = { bedtimeSetupStep = 1 })
+                    1 -> BedtimeScheduleScreen(onNext = { bedtimeSetupStep = 2 })
+                    2 -> WakeUpTimeScreen(onDone = {
+                        prefs.edit().putBoolean("isBedtimeSetupComplete", true).apply()
+                        isBedtimeSetupComplete = true
+                        bedtimeSetupStep = 3 // Mark setup as complete
+                        currentScreenIndex = 4 // Switch to Bedtime tab after setup
+                    })
+                    else -> BedtimeScreen() // Should not happen during setup, but show main screen as fallback
+                }
+                */
+                // Placeholder for missing Bedtime setup
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Text("Bedtime setup is not complete (Screens Missing)")
                 }
             } else {
-                // 否则，根据选中的底部导航标签和 Bedtime 设置状态决定显示哪个屏幕 (Keep this)
+                // Main App Screens (Corrected)
                 when (currentScreenIndex) {
                     0 -> AlarmScreen(
-                        onSettingsClick = {
-                            Log.d("NavigationDebug", "onSettingsClick lambda invoked for AlarmScreen")
-                            showSettingsScreen = true
-                        },
+                        onSettingsClick = { showSettingsScreen = true }, // Pass onSettingsClick
+                        ruleViewModel = ruleViewModel
                     )
-                    1 -> ClockScreen(
-                        onSettingsClick = {
-                            Log.d("NavigationDebug", "onSettingsClick lambda invoked for ClockScreen")
-                            showSettingsScreen = true
-                        },
-                    )
-                        2 -> TimerScreen() // Use the updated TimerScreen
-                    3 -> StopwatchScreen() // <-- Corrected this line
-                    4 -> {
-                        // Handle Bedtime screen logic based on setup completion
-                        if (!isBedtimeSetupComplete) {
-                            // 如果 Bedtime 设置未完成，显示设置流程
-                            when (bedtimeSetupStep) {
-                                0 -> BedtimeIntroScreen(
-                                    onGetStartedClick = { bedtimeSetupStep = 1 }
-                                )
-                                1 -> SetWakeUpAlarmScreen(
-                                    onSkip = {
-                                        isBedtimeSetupComplete = true
-                                        prefs.edit { putBoolean("isBedtimeSetupComplete", true) }
-                                        bedtimeSetupStep = 3
-                                    },
-                                    onNext = { bedtimeSetupStep = 2 }
-                                )
-                                2 -> SetBedtimeScreen(
-                                    onSkip = {
-                                        isBedtimeSetupComplete = true
-                                        prefs.edit { putBoolean("isBedtimeSetupComplete", true) }
-                                        bedtimeSetupStep = 3
-                                    },
-                                    onDone = {
-                                        isBedtimeSetupComplete = true
-                                        prefs.edit { putBoolean("isBedtimeSetupComplete", true) }
-                                        bedtimeSetupStep = 3
-                                        // TODO: Save the actual settings
-                                    }
-                                )
-                                else -> BedtimeIntroScreen(onGetStartedClick = { bedtimeSetupStep = 1 })
-                            }
-                        } else {
-                            // 如果 Bedtime 设置已完成，显示主 BedtimeScreen
-                            BedtimeScreen(onSettingsClick = {
-                                Log.d("NavigationDebug", "onSettingsClick lambda invoked for BedtimeScreen")
-                                showSettingsScreen = true
-                            })
-                        }
-                    }
-                    else -> AlarmScreen(onSettingsClick = {
-                        Log.d("NavigationDebug", "onSettingsClick lambda invoked for Default/AlarmScreen")
-                        showSettingsScreen = true
-                    })
+                    1 -> ClockScreen() // Assuming ClockScreen doesn't need onSettingsClick
+                    2 -> TimerScreen(timerViewModel = viewModel()) // Removed onSettingsClick, pass viewModel if needed
+                    3 -> StopwatchScreen(stopwatchViewModel = viewModel()) // Removed onSettingsClick, pass viewModel if needed
+                    4 -> BedtimeScreen() // Show main BedtimeScreen after setup
                 }
             }
         }

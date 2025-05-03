@@ -33,3 +33,7 @@ replay_pid*.log
 
 # Trae AI specific
 .trae/
+
+app/build/
+app/libs/
+.idea/

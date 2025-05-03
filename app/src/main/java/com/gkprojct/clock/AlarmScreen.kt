@@ -2,15 +2,23 @@ package com.gkprojct.clock
 
 // Import shared definitions from SharedDefinitions.kt
 // Ensure these imports are correct based on your SharedDefinitions.kt file
+import com.gkprojct.clock.DayButton // Import DayButton
+import com.gkprojct.clock.AlarmOptionItem // Import AlarmOptionItem
+import com.gkprojct.clock.MoreOptionsSettingsAction // Import MoreOptionsSettingsAction
+import com.gkprojct.clock.dayOfWeekToShortName // Import dayOfWeekToShortName if needed elsewhere
+import com.gkprojct.clock.shortDayNamesOrder // Import shortDayNamesOrder if needed elsewhere
 
 // Import Shared Composable and constants from SharedDefinitions.kt
 // REMOVE any duplicate definitions or placeholders if they exist in this file
 import android.annotation.SuppressLint
 import android.content.res.Configuration
+import android.graphics.Color
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -27,26 +35,36 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Label
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Policy
 import androidx.compose.material.icons.filled.Vibration
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Divider
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FabPosition
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.MaterialTheme.colorScheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton // Add this for Dialog buttons
+import androidx.compose.material3.TimePicker // Add this
+import androidx.compose.material3.TimePickerLayoutType // Add this
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.rememberTimePickerState // Add this
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue // Add missing import
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -57,8 +75,16 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import kotlinx.coroutines.flow.map // Add missing import
+import com.gkprojct.clock.vm.RuleCriteria
+import com.gkprojct.clock.vm.RuleEntity // Import RuleEntity if needed for RuleSelectionDialog
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import java.text.SimpleDateFormat
 import java.time.DayOfWeek
+import java.time.LocalTime // Add potential missing import
 import java.time.format.TextStyle
 import java.util.Calendar
 import java.util.Locale
@@ -76,7 +102,7 @@ data class Alarm(
     val sound: String = "Default (Cesium)", // Example sound name
     val vibrate: Boolean = true,
     var isExpanded: Boolean = false, // Keep track of expanded state
-    val appliedRules: List<String> = emptyList() // Keep track of applied rules
+    val appliedRules: List<String> = emptyList() // Keep track of applied rules (rule names)
 ) {
     // Use SimpleDateFormat to format the time from the Calendar object
     val formattedTime: String
@@ -106,189 +132,215 @@ data class Alarm(
 // --- Main Alarm Screen Composable ---
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AlarmScreen(onSettingsClick: () -> Unit) { // <-- onSettingsClick 参数从这里接收
+fun AlarmScreen(
+    onSettingsClick: () -> Unit,
+    ruleViewModel: RuleViewModel // Assuming RuleViewModel is needed for rules
+) { // <-- Added ruleViewModel parameter
     // Sample alarm data (replace with your actual data source/ViewModel)
     val alarms = remember {
         mutableStateListOf(
             Alarm(
-                time = Calendar.getInstance().apply { set(Calendar.HOUR_OF_DAY, 8); set(Calendar.MINUTE, 30); set(Calendar.AM_PM, Calendar.AM) }, // <-- Pass Calendar object directly
+                time = Calendar.getInstance().apply { set(Calendar.HOUR_OF_DAY, 8); set(Calendar.MINUTE, 30); set(Calendar.AM_PM, Calendar.AM) },
                 isEnabled = true,
                 repeatingDays = setOf(DayOfWeek.MONDAY, DayOfWeek.TUESDAY, DayOfWeek.WEDNESDAY, DayOfWeek.THURSDAY, DayOfWeek.FRIDAY),
-                // isExpanded = true // Keep collapsed initially for cleaner look
-                appliedRules = listOf("课程日历无课时暂停") // Example: apply a rule by default
+                appliedRules = listOf("课程日历无课时暂停")
             ),
             Alarm(
-                time = Calendar.getInstance().apply { set(Calendar.HOUR_OF_DAY, 9); set(Calendar.MINUTE, 0); set(Calendar.AM_PM, Calendar.PM) }, // <-- Pass Calendar object directly
+                time = Calendar.getInstance().apply { set(Calendar.HOUR_OF_DAY, 9); set(Calendar.MINUTE, 0); set(Calendar.AM_PM, Calendar.PM) },
                 isEnabled = false,
                 repeatingDays = setOf(DayOfWeek.SATURDAY, DayOfWeek.SUNDAY),
-                appliedRules = listOf("假日暂停") // Example: apply another rule by default
+                appliedRules = listOf("假日暂停")
             ),
             Alarm(
-                time = Calendar.getInstance().apply { set(Calendar.HOUR_OF_DAY, 6); set(Calendar.MINUTE, 0); set(Calendar.AM_PM, Calendar.AM) }, // <-- Pass Calendar object directly
+                time = Calendar.getInstance().apply { set(Calendar.HOUR_OF_DAY, 6); set(Calendar.MINUTE, 0); set(Calendar.AM_PM, Calendar.AM) },
                 isEnabled = false,
                 label = "Wake up"
             )
         )
     }
 
-    // State to control the display of the Rule Selection Dialog - MOVED OUTSIDE LAZYCOLUMN
+    // State to control the display of the Rule Selection Dialog
     var showRuleSelectionDialog by remember { mutableStateOf(false) }
-    // State to hold the alarm for which the dialog is shown - MOVED OUTSIDE LAZYCOLUMN
+    // State to hold the alarm for which the dialog is shown
     var selectedAlarmForRules by remember { mutableStateOf<Alarm?>(null) }
-//    var showMenu by remember { mutableStateOf(false) } // 这个状态已经移到 MoreOptionsSettingsAction 内部了，这里不需要了
 
+    // --- State for Time Picker Dialog ---
+    var showTimePicker by remember { mutableStateOf(false) }
+    val timePickerState = rememberTimePickerState(
+        initialHour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY),
+        initialMinute = Calendar.getInstance().get(Calendar.MINUTE),
+        is24Hour = false // Or use system setting
+    )
+    // -----------------------------------
+
+    // --- Collect available rules from ViewModel --- (Corrected)
+    val availableRules: List<Rule> by ruleViewModel.allRules
+        .map { ruleEntities ->
+            ruleEntities.map { entity ->
+                // Map RuleEntity to Rule UI model (ensure Rule constructor exists and is imported)
+                Rule(
+                    id = entity.id,
+                    name = entity.name,
+                    description = entity.description,
+                    enabled = entity.enabled,
+                    targetAlarmIds = entity.targetAlarmIds,
+                    calendarIds = entity.calendarIds,
+                    criteria = entity.criteria // Ensure criteria types match
+                )
+            }
+        }
+        .collectAsState(initial = emptyList<Rule>()) // Specify type for initial value
+    // --------------------------------------------
 
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text("Alarm") },
                 actions = {
-                    MoreOptionsSettingsAction(onSettingsClick = onSettingsClick) // <-- Directly pass the parameter
+                    // Use the imported MoreOptionsSettingsAction
+                    MoreOptionsSettingsAction(onSettingsClick = onSettingsClick)
                 }
             )
         },
-
         floatingActionButton = {
-            FloatingActionButton(onClick = { /* TODO: Handle Add Alarm (Navigate to Add/Edit screen) */ }) {
-                Icon(Icons.Default.Add, contentDescription = "Add Alarm")
+            FloatingActionButton(onClick = { showTimePicker = true }) {
+                Icon(Icons.Filled.Add, contentDescription = "Add Alarm")
             }
-        },
-        floatingActionButtonPosition = FabPosition.Center
-        // bottomBar is now handled by the root AppContent in MainActivity
-    )
-    { paddingValues ->
-        // The content of the Alarm screen goes here, applying the padding
+        }
+    ) { paddingValues ->
         LazyColumn(
             modifier = Modifier
-                .padding(paddingValues) // Apply padding from Scaffold (includes top bar and implicit bottom bar space)
+                .padding(paddingValues)
                 .fillMaxSize(),
-            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp), // Padding around the list items
-            verticalArrangement = Arrangement.spacedBy(12.dp) // Spacing between alarm items
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             items(alarms, key = { it.id }) { alarm ->
-                // Find the index to update the original list (mutableStateListOf makes this observable)
                 val index = alarms.indexOfFirst { it.id == alarm.id }
-                if (index != -1) { // Ensure index is valid
-                    // Remember the state for the individual alarm item within the list
+                if (index != -1) {
                     var currentAlarmState by remember { mutableStateOf(alarm) }
 
-                    // Sync state changes back to the main list
-                    // This ensures UI updates trigger recomposition of the list item
                     LaunchedEffect(currentAlarmState) {
-                        alarms[index] = currentAlarmState // Update the item in the main list
+                        if (alarms[index] != currentAlarmState) { // Only update if changed
+                            alarms[index] = currentAlarmState
+                        }
                     }
 
                     // --- Corrected and complete call to AlarmItem ---
                     AlarmItem(
-                        alarm = currentAlarmState, // Pass the alarm data object
-                        onToggle = { isEnabled: Boolean -> // Explicitly type for clarity
-                            // When the switch is toggled, update the isEnabled state of this alarm item
-                            currentAlarmState = currentAlarmState.copy(isEnabled = isEnabled)
-                        },
-                        onExpandedChange = { isExpanded: Boolean -> // Explicitly type for clarity
-                            // When the item is clicked, update its expanded state
-                            currentAlarmState = currentAlarmState.copy(isExpanded = isExpanded)
-                        },
-                        onDayToggle = { day: DayOfWeek -> // Explicitly type for clarity
-                            // When a day button is toggled, update the repeatingDays set
-                            val newDays = currentAlarmState.repeatingDays.toMutableSet()
-                            if (newDays.contains(day)) {
-                                newDays.remove(day)
-                            } else {
-                                newDays.add(day)
-                            }
-                            currentAlarmState =
-                                currentAlarmState.copy(repeatingDays = newDays.toSet()) // Update the set, convert back to immutable Set
-                        },
-                        onLabelClick = {
-                            /* TODO: Handle label click (e.g., show dialog to edit label) */
-                            println("Label clicked for alarm ${alarm.id}") // Placeholder action
-                        },
-                        onSoundClick = {
-                            /* TODO: Handle sound click (e.g., navigate to sound picker screen) */
-                            println("Sound clicked for alarm ${alarm.id}") // Placeholder action
-                        },
-                        onVibrateToggle = { vibrate: Boolean -> // Explicitly type for clarity
-                            // When vibrate checkbox is toggled, update the vibrate state
-                            currentAlarmState = currentAlarmState.copy(vibrate = vibrate)
-                        },
-                        onDeleteClick = {
-                            /* TODO: Show confirmation dialog before deleting */
-                            println("Delete clicked for alarm ${alarm.id}") // Placeholder action
-                            // Temporarily delete directly for testing
-                            alarms.removeAt(index) // This modifies the main list, triggering recomposition
-                        },
-                        onRulesClick =  {
-                            // 当点击规则选项时，设置屏幕级别的状态来显示对话框，并记住是哪个闹钟
-                            selectedAlarmForRules = currentAlarmState // Remember which alarm was clicked
-                            showRuleSelectionDialog = true // Show the dialog
+                        alarm = currentAlarmState,
+                        onToggleExpand = { currentAlarmState = currentAlarmState.copy(isExpanded = !currentAlarmState.isExpanded) },
+                        onToggleEnable = { enabled -> currentAlarmState = currentAlarmState.copy(isEnabled = enabled) },
+                        onDelete = { alarms.removeAt(index) }, // Simple delete for now
+                        onLabelChange = { newLabel -> currentAlarmState = currentAlarmState.copy(label = newLabel.ifBlank { null }) },
+                        onRepeatingDaysChange = { newDays -> currentAlarmState = currentAlarmState.copy(repeatingDays = newDays) },
+                        onSoundChange = { /* TODO: Implement sound selection */ },
+                        onVibrateChange = { vibrate -> currentAlarmState = currentAlarmState.copy(vibrate = vibrate) },
+                        onRuleClick = { // Show rule selection dialog when rule section is clicked
+                            selectedAlarmForRules = currentAlarmState
+                            showRuleSelectionDialog = true
                         }
                     )
+                    // -------------------------------------------------
                 }
             }
         }
 
-        // --- Rule Selection Dialog (Keep this part here) ---
-        // 根据屏幕级别的状态显示规则选择对话框
-        if (showRuleSelectionDialog && selectedAlarmForRules != null) {
-            // Define a list of available rules (for now, hardcoded examples)
-            // In a real app, this list would come from your settings/data source
-            val availableRules = remember {
-                listOf("假日暂停", "周末暂停", "课程日历无课时暂停", "国定假日暂停") // Example rules
-            }
-            RuleSelectionDialog(
-                alarm = selectedAlarmForRules!!, // Pass the selected alarm
-                availableRules = availableRules, // <-- Pass the list of available rules
-                onDismiss = {
-                    showRuleSelectionDialog = false // Hide the dialog on dismiss
-                    selectedAlarmForRules = null // Clear the selected alarm
-                },
-                onRulesUpdated = { updatedAlarm -> // <-- Modified callback name and signature
-                    // When rules are updated in the dialog, update the corresponding alarm in the main list
-                    val updatedIndex = alarms.indexOfFirst { it.id == updatedAlarm.id }
-                    if (updatedIndex != -1) {
-                        alarms[updatedIndex] = updatedAlarm // Update the alarm in the main list
+        // --- Time Picker Dialog --- (Placed outside LazyColumn)
+        if (showTimePicker) {
+            TimePickerDialog(
+                onDismissRequest = { showTimePicker = false },
+                confirmButton = {
+                    TextButton(onClick = {
+                        val selectedCalendar = Calendar.getInstance().apply {
+                            set(Calendar.HOUR_OF_DAY, timePickerState.hour)
+                            set(Calendar.MINUTE, timePickerState.minute)
+                        }
+                        // Add the new alarm to the list
+                        alarms.add(
+                            Alarm(
+                                time = selectedCalendar,
+                                isEnabled = true // Default to enabled
+                                // Add other default properties as needed
+                            )
+                        )
+                        showTimePicker = false
+                    }) {
+                        Text("OK")
                     }
-                    // Note: The dialog doesn't automatically close after selecting,
-                    // user needs to click "确定" or outside the dialog.
-                    // If you want it to close after selection, call onDismiss here.
-                    // onDismiss() // Uncomment this line if you want the dialog to close on selection
+                },
+                dismissButton = {
+                    TextButton(onClick = { showTimePicker = false }) {
+                        Text("Cancel")
+                    }
+                }
+            ) {
+                TimePicker(
+                    state = timePickerState,
+                    layoutType = TimePickerLayoutType.Vertical // Or Horizontal
+                )
+            }
+        }
+        // ------------------------
+
+        // --- Rule Selection Dialog --- (Placed outside LazyColumn)
+        if (showRuleSelectionDialog && selectedAlarmForRules != null) {
+            val currentAlarm = selectedAlarmForRules!! // Safe call due to check
+            // Assuming appliedRules stores rule names (Strings)
+            val initialSelectedRuleNames = currentAlarm.appliedRules.toSet()
+
+            // Find the corresponding Rule objects for the initial names
+            val initialSelectedRules = availableRules.filter { it.name in initialSelectedRuleNames }.map { it.id }.toSet()
+
+            RuleSelectionDialog(
+                showDialog = showRuleSelectionDialog,
+                alarm = currentAlarm,
+                availableRules = availableRules, // Pass the list of Rule objects
+                initialSelectedRuleIds = initialSelectedRules, // Pass the Set<UUID> of initially selected rules
+                onDismiss = { showRuleSelectionDialog = false },
+                onRulesSelected = { selectedRuleIds ->
+                    // Find the names of the selected rules
+                    val selectedRuleNames = availableRules
+                        .filter { it.id in selectedRuleIds }
+                        .map { it.name }
+
+                    // Update the alarm's appliedRules list
+                    val index = alarms.indexOfFirst { it.id == currentAlarm.id }
+                    if (index != -1) {
+                        alarms[index] = alarms[index].copy(appliedRules = selectedRuleNames)
+                    }
+                    selectedAlarmForRules = null // Clear selection
+                    showRuleSelectionDialog = false
                 }
             )
         }
+        // ---------------------------
     }
 }
 
-// --- Composable for a Single Alarm Item ---
-@OptIn(ExperimentalMaterial3Api::class) // Surface with onClick needs this
+// --- Alarm Item Composable (Structure assumed, ensure it matches your definition) ---
 @Composable
 fun AlarmItem(
-    alarm: Alarm, // <-- Receive the Alarm data object
-    onToggle: (Boolean) -> Unit,
-    onExpandedChange: (Boolean) -> Unit,
-    onDayToggle: (DayOfWeek) -> Unit,
-    onLabelClick: () -> Unit,
-    onSoundClick: () -> Unit,
-    onVibrateToggle: (Boolean) -> Unit,
-    onDeleteClick: () -> Unit,
-    onRulesClick: () -> Unit, // <-- New callback for Rules click
-    modifier: Modifier = Modifier
+    alarm: Alarm,
+    onToggleExpand: () -> Unit,
+    onToggleEnable: (Boolean) -> Unit,
+    onDelete: () -> Unit,
+    onLabelChange: (String) -> Unit,
+    onRepeatingDaysChange: (Set<DayOfWeek>) -> Unit,
+    onSoundChange: (String) -> Unit, // Placeholder
+    onVibrateChange: (Boolean) -> Unit,
+    onRuleClick: () -> Unit // Callback when the rule section is clicked
 ) {
     // Use Surface for background color and elevation/border if desired
     Surface(
-        modifier = modifier.fillMaxWidth(),
+        modifier = Modifier.fillMaxWidth(),
         shape = MaterialTheme.shapes.medium, // Rounded corners
         tonalElevation = 2.dp, // Slight elevation like a card
-        // border = BorderStroke(1.dp, Color.Gray) // Optional border
-
-        // Make the Surface clickable to expand/collapse, but exclude the Switch inside
-        // We handle the click explicitly on the Column below
-        // onClick = { onExpandedChange(!alarm.isExpanded) } // Don't use onClick here directly on Surface if Column is clickable
     ) {
         Column(
             // Make the column clickable to expand/collapse
             modifier = Modifier
-                .clickable(onClick = { onExpandedChange(!alarm.isExpanded) }) // Handle expand/collapse click here
+                .clickable(onClick = onToggleExpand) // Handle expand/collapse click here
                 .padding(horizontal = 16.dp, vertical = 12.dp) // Inner padding
         ) {
             // Top Row: Time, Label/Days, Switch
@@ -318,9 +370,9 @@ fun AlarmItem(
                 // Handle the click explicitly on the Switch itself, preventing ripple on Column
                 Switch(
                     checked = alarm.isEnabled,
-                    onCheckedChange = onToggle, // Use the provided callback
+                    onCheckedChange = onToggleEnable, // Use the provided callback
                     modifier = Modifier.clickable(
-                        onClick = { onToggle(!alarm.isEnabled) }, // Explicitly call onToggle here
+                        onClick = { onToggleEnable(!alarm.isEnabled) }, // Explicitly call onToggleEnable here
                         indication = null, // Prevent ripple effect on the switch click itself
                         interactionSource = remember { MutableInteractionSource() } // Needed for clickable without default indication
                     )
@@ -349,241 +401,225 @@ fun AlarmItem(
             }
 
 
-            // --- Expanded Content ---
+            // --- Expanded Section ---
             if (alarm.isExpanded) {
-                Spacer(Modifier.height(16.dp))
-                Divider() // Separator
-                Spacer(Modifier.height(16.dp))
+                Divider(modifier = Modifier.padding(vertical = 12.dp))
 
-                // Day Selection Row
+                // Repeating Days Buttons (Assuming DayButton exists)
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween // Distribute days evenly
+                    horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    // Use the ordered list of DayOfWeek enums from SharedDefinitions
-                    // Ensure shortDayNamesOrder and dayOfWeekToShortName are imported
-                    // Ensure DayButton is imported
-                    shortDayNamesOrder.forEach { dayOfWeek ->
-                        DayButton( // Use the shared DayButton composable
-                            text = dayOfWeekToShortName[dayOfWeek] ?: "?", // Get short name from map
-                            isSelected = alarm.repeatingDays.contains(dayOfWeek), // Check if this day is in the repeatingDays set
-                            onClick = { onDayToggle(dayOfWeek) } // Call the onDayToggle callback with the specific DayOfWeek
+                    // Use a standard loop or Composable loop like FlowRow if needed
+                    // Qualify shortDayNamesOrder if ambiguous
+                    for (dayOfWeek in com.gkprojct.clock.util.shortDayNamesOrder) { // Example qualification
+                        DayButton(
+                            day = dayOfWeek,
+                            isSelected = alarm.repeatingDays.contains(dayOfWeek),
+                            onClick = {
+                                val newDays = alarm.repeatingDays.toMutableSet()
+                                if (newDays.contains(dayOfWeek)) {
+                                    newDays.remove(dayOfWeek)
+                                } else {
+                                    newDays.add(dayOfWeek)
+                                }
+                                onRepeatingDaysChange(newDays)
+                            }
                         )
                     }
                 }
 
                 Spacer(Modifier.height(16.dp))
 
-                // Options List
-                // Use the shared AlarmOptionItem composable for each setting
-                // Ensure AlarmOptionItem is imported
-                AlarmOptionItem(
-                    icon = Icons.Default.Label,
-                    text = alarm.label ?: "Add label",
-                    onClick = onLabelClick // Call the onLabelClick callback
-                )
-                // Sound option
-                AlarmOptionItem(
-                    icon = Icons.Default.MusicNote,
-                    text = alarm.sound, // Show the current sound
-                    hasMoreAction = true, // Indicates navigation
-                    onClick = onSoundClick // Call the onSoundClick callback
-                )
-                // Vibrate option
-                AlarmOptionItem(
-                    icon = Icons.Default.Vibration,
-                    text = "Vibrate",
-                    content = { // Use the content slot for the Checkbox
-                        Checkbox(
-                            checked = alarm.vibrate, // Use the alarm's vibrate state
-                            onCheckedChange = onVibrateToggle // Call the onVibrateToggle callback
-                        )
-                    },
-                    // Make the row clickable to toggle the checkbox
-                    onClick = { onVibrateToggle(!alarm.vibrate) }
-                )
-                // Add other options similarly if needed (e.g., Google Assistant Routine)
-                AlarmOptionItem(
-                    icon = Icons.Default.Policy, // 使用 Policy 或其他合适的图标
-                    text = "规则", // 显示文本 "规则"
-                    description = if (alarm.appliedRules.isEmpty()) "未应用规则" else "${alarm.appliedRules.size} 条规则", // 显示已应用的规则数量或状态
-                    hasMoreAction = true, // 指示点击可以进入下一界面
-                    onClick = onRulesClick // <-- 调用新的回调参数
-                )
-                // Delete option
-                AlarmOptionItem(
-                    icon = Icons.Default.Delete,
-                    text = "Delete",
-                    onClick = onDeleteClick // Call the onDeleteClick callback
-                )
+                // Other Options (Assuming AlarmOptionItem exists)
+                // Use the correct AlarmOptionItem definition (assuming one from preview or shared components)
+                // Example using the one with 'checked'
+                val alarmOptionItem = com.gkprojct.clock.ui.components.AlarmOptionItem(icon = Icons.Default.Label, text = alarm.label ?: "Add Label", onClick = { /* TODO: Show Label Dialog */ onLabelChange(alarm.label ?: "") })
+                val alarmOptionItem1 = com.gkprojct.clock.ui.components.AlarmOptionItem(icon = Icons.Default.MusicNote, text = alarm.sound, onClick = { onSoundChange(alarm.sound) /* TODO: Show Sound Picker */ })
+                com.gkprojct.clock.ui.components.AlarmOptionItem(icon = Icons.Default.Vibration, text = "Vibrate", checked = alarm.vibrate, onClick = { onVibrateChange(!alarm.vibrate) })
 
+                // --- Rules Section --- (Clickable to open dialog)
+                AlarmOptionItem(
+                    icon = Icons.Default.Policy,
+                    text = if (alarm.appliedRules.isEmpty()) "Rules" else "Rules: ${alarm.appliedRules.joinToString()}",
+                    onClick = onRuleClick // Trigger dialog on click
+                )
+                // ---------------------
+
+                Spacer(Modifier.height(16.dp))
+
+                // Delete Button
+                Button(
+                    onClick = onDelete,
+                    modifier = Modifier.align(Alignment.End),
+                    contentPadding = PaddingValues(horizontal = 16.dp)
+                ) {
+                    Icon(Icons.Default.Delete, contentDescription = "Delete Alarm")
+                    Spacer(Modifier.width(8.dp))
+                    Text("Delete")
+                }
             }
         }
     }
 }
 
-// --- Composable for Rule Selection Dialog/Screen (Placeholder) ---
-// This can remain in AlarmScreen.kt for now, or be moved to a separate file later
-@SuppressLint("MutableCollectionMutableState")
+// --- Rule Selection Dialog Composable (Structure assumed) ---
 @Composable
 fun RuleSelectionDialog(
-    alarm: Alarm, // 接收要应用规则的闹钟
-    availableRules: List<String>, // <-- Add parameter: list of all available rules
-    onDismiss: () -> Unit, // Callback to dismiss the dialog
-    onRulesUpdated: (Alarm) -> Unit // <-- Modified callback: returns the updated Alarm object
+    showDialog: Boolean,
+    alarm: Alarm,
+    availableRules: List<Rule>, // Now expects List<Rule>
+    initialSelectedRuleIds: Set<UUID>, // Expects Set<UUID>
+    onDismiss: () -> Unit,
+    onRulesSelected: (Set<UUID>) -> Unit // Returns Set<UUID>
 ) {
-    // In the dialog, manage the currently selected rules (based on the incoming alarm.appliedRules)
-    var currentAppliedRules by remember(alarm.appliedRules) { // Re-initialize state when alarm.appliedRules changes
-        mutableStateOf(alarm.appliedRules.toMutableSet())
-    }
+    if (showDialog) {
+        var currentSelectedIds by remember { mutableStateOf(initialSelectedRuleIds) }
 
-    AlertDialog( // Use AlertDialog as an example, you could also use a full screen
-        onDismissRequest = onDismiss,
-        title = { Text("应用规则到闹钟") },
-        text = {
-            Column {
-                Text("闹钟时间: ${alarm.formattedTime} ${alarm.amPm}")
-                Spacer(Modifier.height(8.dp))
-                Text("已应用的规则:")
-                if (currentAppliedRules.isEmpty()) { // Use currentAppliedRules state
-                    Text("无")
-                } else {
-                    currentAppliedRules.forEach { rule -> // Use currentAppliedRules state
-                        Text("- $rule")
-                    }
-                }
-                Spacer(Modifier.height(16.dp))
-                Text("可用规则 (示例):")
-                // TODO: List available rules here (e.g., fetched from settings/data source)
-                val availableRulesList = remember { listOf("假日暂停", "周末暂停", "课程日历无课时暂停") } // Example list
-
-                // Basic example of listing available rules and a dummy apply button
-                availableRulesList.forEach { ruleId -> // Use availableRulesList
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("- $ruleId")
-                        Spacer(Modifier.weight(1f))
-                        Button(
-                            onClick = {
-                                // Example: Add the rule to the alarm's appliedRules
-                                // Update the local state and call the parent callback
-                                if (!currentAppliedRules.contains(ruleId)) {
-                                    val newRules = currentAppliedRules.plus(ruleId).toMutableSet() // Update local state first
-                                    currentAppliedRules = newRules
-                                    val updatedAlarm = alarm.copy(appliedRules = newRules.toList())
-                                    onRulesUpdated(updatedAlarm) // Call the callback to update the alarm in the main list
-                                } else {
-                                    println("Rule $ruleId already applied") // Log if already applied
+        AlertDialog(
+            onDismissRequest = onDismiss,
+            title = { Text("Select Rules for '${alarm.label ?: alarm.formattedTime}'") },
+            text = {
+                LazyColumn {
+                    items(availableRules, key = { it.id }) { rule ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    currentSelectedIds = currentSelectedIds.toMutableSet().apply {
+                                        if (contains(rule.id)) remove(rule.id)
+                                        else add(rule.id)
+                                    }
                                 }
-                            },
-                            enabled = !currentAppliedRules.contains(ruleId) // Disable if already applied
+                                .padding(vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text(if (currentAppliedRules.contains(ruleId)) "已应用" else "应用") // Use currentAppliedRules state
-                        }
-                    }
-                }
-
-
-                // TODO: Add UI to remove rules
-                if (currentAppliedRules.isNotEmpty()) { // Use currentAppliedRules state
-                    Spacer(Modifier.height(16.dp))
-                    Text("移除规则 (示例):")
-                    currentAppliedRules.forEach { ruleId -> // Use currentAppliedRules state
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text("- $ruleId")
-                            Spacer(Modifier.weight(1f))
-                            Button(onClick = {
-                                // Example: Remove the rule from the alarm's appliedRules
-                                // Update the local state and call the parent callback
-                                val newRules = currentAppliedRules.minus(ruleId).toMutableSet() // Update local state first
-                                currentAppliedRules = newRules
-                                val updatedAlarm = alarm.copy(appliedRules = newRules.toList())
-                                onRulesUpdated(updatedAlarm) // Call the callback to update the alarm in the main list
-                            }) {
-                                Text("移除")
+                            Checkbox(
+                                checked = currentSelectedIds.contains(rule.id),
+                                onCheckedChange = { isChecked ->
+                                    currentSelectedIds = currentSelectedIds.toMutableSet().apply {
+                                        if (isChecked) add(rule.id)
+                                        else remove(rule.id)
+                                    }
+                                }
+                            )
+                            Spacer(Modifier.width(16.dp))
+                            Column {
+                                Text(rule.name)
+                                Text(
+                                    rule.description,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
                             }
                         }
                     }
                 }
+            },
+            confirmButton = {
+                TextButton(onClick = { onRulesSelected(currentSelectedIds) }) {
+                    Text("Apply")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = onDismiss) {
+                    Text("Cancel")
+                }
             }
-        },
-        confirmButton = {
-            Button(onClick = onDismiss) { // Click confirm button to dismiss the dialog
-                Text("确定")
-            }
-        }
-        // Optional: dismissButton if you want a dedicated "Cancel" button
-    )
+        )
+    }
 }
 
+// --- Time Picker Dialog Wrapper --- (Helper Composable)
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun TimePickerDialog(
+    title: String = "Select Time",
+    onDismissRequest: () -> Unit,
+    confirmButton: @Composable (() -> Unit),
+    dismissButton: @Composable (() -> Unit)? = null,
+    containerColor: Color = colorScheme.surface, // Use Compose Color
+    content: @Composable () -> Unit,
+) {
+    Dialog(
+        onDismissRequest = onDismissRequest,
+        properties = DialogProperties(
+            usePlatformDefaultWidth = false
+        ),
+    ) {
+        Surface(
+            shape = MaterialTheme.shapes.extraLarge,
+            tonalElevation = 6.dp,
+            modifier = Modifier
+                .width(IntrinsicSize.Min)
+                .height(IntrinsicSize.Min)
+                .background(
+                    shape = MaterialTheme.shapes.extraLarge,
+                    color = containerColor // Use Compose Color
+                ),
+            color = containerColor // Use Compose Color
+        ) {
+            // Column needs to be inside the Surface's content lambda
+            Column(
+                modifier = Modifier.padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 20.dp),
+                    text = title,
+                    style = MaterialTheme.typography.labelMedium
+                )
+                content()
+                Row(
+                    modifier = Modifier
+                        .height(40.dp)
+                        .fillMaxWidth()
+                ) {
+                    Spacer(modifier = Modifier.weight(1f))
+                    dismissButton?.invoke()
+                    confirmButton()
+                }
+            }
+        }
+    }
+}
 
 // --- Preview ---
-// Keep your Preview functions here
-@Preview(showBackground = true, uiMode = Configuration.UI_MODE_NIGHT_YES, name = "Alarm Screen Dark") // Dark mode preview
+@Preview(showBackground = true)
+@Preview(showBackground = true, uiMode = Configuration.UI_MODE_NIGHT_YES)
 @Composable
 fun AlarmScreenPreview() {
-    // Wrap preview in a theme (e.g., ClockTheme)
-    // If Theme is not available here, wrap in MaterialTheme
+    // Create a dummy RuleDao and RuleViewModel for the preview
+    val sampleRuleDao = object : com.gkprojct.clock.vm.RuleDao {
+        private val sampleRulesFlow = MutableStateFlow(listOf(
+            // Ensure RuleCriteria is imported or qualified
+            com.gkprojct.clock.vm.RuleEntity(UUID.randomUUID(), "Holiday Pause", "Pause on holidays", true, emptySet(), setOf(1L), com.gkprojct.clock.RuleCriteria.IfCalendarEventExists(listOf("holiday"), 60)), // Use correct RuleCriteria path
+            com.gkprojct.clock.vm.RuleEntity(UUID.randomUUID(), "No Class Pause", "Pause if no class", false, emptySet(), setOf(2L), com.gkprojct.clock.RuleCriteria.BasedOnTime(LocalTime.of(9,0), LocalTime.of(17,0))) // Use correct RuleCriteria path
+        ))
+        override fun getAllRules(): Flow<List<com.gkprojct.clock.vm.RuleEntity>> = sampleRulesFlow
+        override suspend fun getRuleById(ruleId: UUID): com.gkprojct.clock.vm.RuleEntity? = sampleRulesFlow.value.find { it.id == ruleId }
+        override suspend fun insertRule(rule: com.gkprojct.clock.vm.RuleEntity) {}
+        override suspend fun updateRule(rule: com.gkprojct.clock.vm.RuleEntity) {}
+        override suspend fun deleteRule(rule: com.gkprojct.clock.vm.RuleEntity) {}
+        override suspend fun deleteRuleById(ruleId: UUID) {}
+    }
+    val sampleViewModel = com.gkprojct.clock.RuleViewModel(sampleRuleDao)
+
     MaterialTheme {
-        // Provide an empty lambda for onSettingsClick in preview
-        AlarmScreen(onSettingsClick = { /* Preview doesn't navigate */ }) // Corrected lambda
+        AlarmScreen(onSettingsClick = {}, ruleViewModel = sampleViewModel) // Pass dummy ViewModel
     }
 }
 
-@Preview(showBackground = true, name = "Alarm Screen Light") // Light mode preview
-@Composable
-fun AlarmScreenPreviewLight() {
-    // Wrap preview in a theme (e.g., ClockTheme)
-    MaterialTheme {
-        // Provide an empty lambda for onSettingsClick in preview
-        AlarmScreen(onSettingsClick = { /* Preview doesn't navigate */ }) // Corrected lambda
-    }
-}
 
-// --- Preview for Rule Selection Dialog ---
-@Preview(showBackground = true, uiMode = Configuration.UI_MODE_NIGHT_YES, name = "Rule Dialog Dark")
-@Composable
-fun RuleSelectionDialogPreviewDark() {
-    MaterialTheme { // Or your app's theme
-        val sampleAlarm = remember {
-            mutableStateOf(
-                Alarm(
-                    time = Calendar.getInstance().apply { set(Calendar.HOUR_OF_DAY, 8); set(Calendar.MINUTE, 30); set(Calendar.AM_PM, Calendar.AM) }, // <-- Pass Calendar object directly
-                    isEnabled = true,
-                    appliedRules = listOf("假日暂停", "周末暂停") // Example applied rules
-                ))
-        }
-        RuleSelectionDialog(
-            alarm = sampleAlarm.value,
-            availableRules = listOf("假日暂停", "周末暂停", "课程日历无课时暂停", "国定假日暂停"), // Pass example rules for preview
-            onDismiss = {},
-            onRulesUpdated = { updatedAlarm -> // Corrected callback name and signature
-                sampleAlarm.value = updatedAlarm.copy() // Update the sample alarm state in preview
-                println("Preview: Applied/Removed rule. Updated rules: ${updatedAlarm.appliedRules}")
-            }
-        )
-    }
-}
 
-@Preview(showBackground = true, name = "Rule Dialog Light")
-@Composable
-fun RuleSelectionDialogPreviewLight() {
-    MaterialTheme { // Or your app's theme
-        val sampleAlarm = remember {
-            mutableStateOf(
-                Alarm(
-                    time = Calendar.getInstance().apply { set(Calendar.HOUR_OF_DAY, 8); set(Calendar.MINUTE, 30); set(Calendar.AM_PM, Calendar.AM) }, // <-- Pass Calendar object directly
-                    isEnabled = true,
-                    appliedRules = emptyList() // Example no applied rules
-                ))
-        }
-        RuleSelectionDialog(
-            alarm = sampleAlarm.value,
-            availableRules = listOf("假日暂停", "周末暂停", "课程日历无课时暂停", "国定假日暂停"), // Pass example rules for preview
-            onDismiss = {},
-            onRulesUpdated = { updatedAlarm -> // Corrected callback name and signature
-                sampleAlarm.value = updatedAlarm.copy() // Update the sample alarm state in preview
-                println("Preview: Applied/Removed rule. Updated rules: ${updatedAlarm.appliedRules}")
-            }
-        )
-    }
-}
+
+
+
+
+
+
+
+
+// ... rest of the file ...

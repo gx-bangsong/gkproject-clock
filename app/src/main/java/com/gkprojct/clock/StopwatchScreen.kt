@@ -20,10 +20,15 @@ import androidx.compose.material.icons.filled.Flag
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.MoreVert // Add import for MoreVert
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Divider
+import androidx.compose.material3.ExperimentalMaterial3Api // Add import for ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton // Add import for IconButton
+import androidx.compose.material3.Scaffold // Add import for Scaffold
+import androidx.compose.material3.TopAppBar // Add import for TopAppBar
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -45,18 +50,32 @@ import com.gkprojct.clock.vm.StopwatchState
 import com.gkprojct.clock.vm.StopwatchViewModel
 
 // Removed onSettingsClick parameter as it's not used in this version
+@OptIn(ExperimentalMaterial3Api::class) // Add OptIn for Scaffold
 @Composable
 fun StopwatchScreen(stopwatchViewModel: StopwatchViewModel = viewModel()) {
     val elapsedTime by stopwatchViewModel.elapsedTime.collectAsState()
     val laps by stopwatchViewModel.laps.collectAsState()
     val stopwatchState by stopwatchViewModel.stopwatchState.collectAsState()
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("秒表") },
+                actions = {
+                    IconButton(onClick = { /* TODO: Implement settings menu */ }) {
+                        Icon(Icons.Filled.MoreVert, contentDescription = "更多选项")
+                    }
+                }
+            )
+        }
+    ) { paddingValues ->
+        Column(
+            modifier = Modifier
+                .padding(paddingValues) // Apply padding from Scaffold
+                .fillMaxSize()
+                .padding(16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
         // Top Area: Timer Display
         Box(
             modifier = Modifier
@@ -204,74 +223,58 @@ fun StopwatchControls(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 24.dp),
-        horizontalArrangement = Arrangement.SpaceEvenly,
+            .padding(vertical = 24.dp, horizontal = 16.dp), // Add horizontal padding
+        horizontalArrangement = Arrangement.SpaceBetween, // Use SpaceBetween for edge alignment
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // Left Button: Lap or Reset
+        // Left Button: Reset / Lap
+        val isResetEnabled = stopwatchState == StopwatchState.PAUSED // Enable Reset only when paused
+        val isLapEnabled = stopwatchState == StopwatchState.RUNNING // Enable Lap only when running
         Button(
-            onClick = if (stopwatchState == StopwatchState.IDLE) onResetClick else onLapClick,
-            modifier = Modifier.size(80.dp),
+            onClick = if (isLapEnabled) onLapClick else onResetClick,
+            enabled = isLapEnabled || isResetEnabled, // Enabled if running (Lap) or paused (Reset)
             shape = CircleShape,
+            modifier = Modifier.size(72.dp), // Consistent size with reference
             contentPadding = PaddingValues(0.dp),
             colors = ButtonDefaults.buttonColors(
                 containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                contentColor = MaterialTheme.colorScheme.onSecondaryContainer
-            ),
-            // Enable Lap only when RUNNING, Enable Reset only when PAUSED or IDLE (but not 0 time)
-            enabled = stopwatchState == StopwatchState.RUNNING || (stopwatchState != StopwatchState.IDLE) // Enable Lap when running, Reset otherwise unless truly idle
+                contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.38f), // Muted disabled state
+                disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f)
+            )
         ) {
             Icon(
-                imageVector = if (stopwatchState == StopwatchState.RUNNING) Icons.Filled.Flag else Icons.Filled.Refresh,
-                contentDescription = if (stopwatchState == StopwatchState.RUNNING) "Lap" else "Reset"
+                imageVector = if (isLapEnabled) Icons.Filled.Flag else Icons.Filled.Refresh,
+                contentDescription = if (isLapEnabled) "计次" else "重置"
             )
         }
 
-        // Center Button: Start/Pause
+        // Center Button: Start / Pause (Conditional Shape & Size)
+        val isRunning = stopwatchState == StopwatchState.RUNNING
+        val isIdle = stopwatchState == StopwatchState.IDLE
         Button(
-            onClick = {
-                when (stopwatchState) {
-                    StopwatchState.IDLE, StopwatchState.PAUSED -> onStartClick()
-                    StopwatchState.RUNNING -> onPauseClick()
-                }
-            },
-            modifier = Modifier
-                .size(80.dp) // Adjust size as needed
-                .weight(1.5f), // Give it more weight to be larger
-            shape = RoundedCornerShape(24.dp), // Change shape to RoundedCornerShape
+            onClick = if (isRunning) onPauseClick else onStartClick,
+            // Shape: Rounded Rect when running/paused, Circle when idle
+            shape = if (isIdle) CircleShape else RoundedCornerShape(24.dp),
+            // Size: Larger Circle when idle, Rectangular when running/paused
+            modifier = if (isIdle) Modifier.size(88.dp) else Modifier.height(72.dp).width(140.dp),
+            contentPadding = PaddingValues(0.dp),
             colors = ButtonDefaults.buttonColors(
-                containerColor = MaterialTheme.colorScheme.primary, // Use primary color
-                contentColor = MaterialTheme.colorScheme.onPrimary // Use onPrimary for content
-            ),
-            contentPadding = PaddingValues(0.dp) // Remove default padding if needed
+                // Color: Primary when idle (Start), SurfaceVariant when running (Pause)
+                containerColor = if (isIdle) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant,
+                contentColor = if (isIdle) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
+            )
         ) {
             Icon(
-                imageVector = when (stopwatchState) {
-                    StopwatchState.IDLE, StopwatchState.PAUSED -> Icons.Filled.PlayArrow
-                    StopwatchState.RUNNING -> Icons.Filled.Pause
-                },
-                contentDescription = when (stopwatchState) {
-                    StopwatchState.IDLE, StopwatchState.PAUSED -> "Start"
-                    StopwatchState.RUNNING -> "Pause"
-                },
-                modifier = Modifier.size(40.dp) // Adjust icon size
+                imageVector = if (isRunning) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+                contentDescription = if (isRunning) "暂停" else "开始",
+                modifier = Modifier.size(ButtonDefaults.IconSize * 1.5f) // Larger icon
             )
         }
 
-        // Right Button: Placeholder or Future Functionality (Kept for symmetry)
-        // Using a disabled button or Box for spacing
-        Box(modifier = Modifier.size(80.dp)) // Placeholder to maintain spacing
-        /* Example if adding a third button:
-        Button(
-            onClick = { /* Action for third button */ },
-            modifier = Modifier.size(80.dp),
-            shape = CircleShape,
-            enabled = false, // Or based on state
-            colors = ButtonDefaults.buttonColors(disabledContainerColor = Color.Transparent)
-        ) {
-            // Icon or Text
-        }
-        */
+        // Right Button: Placeholder (Invisible, maintains spacing)
+        // Matches the size of the left button for symmetry
+        Box(modifier = Modifier.size(72.dp)) // Placeholder to maintain spacing
     }
 }
 
@@ -291,4 +294,5 @@ fun StopwatchScreenPreviewDark() {
     MaterialTheme {
         StopwatchScreen()
     }
+}
 }

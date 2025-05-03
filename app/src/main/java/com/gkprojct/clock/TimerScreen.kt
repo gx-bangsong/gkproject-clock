@@ -3,30 +3,25 @@ package com.gkprojct.clock
 import android.os.Build
 import androidx.annotation.RequiresApi
 import androidx.compose.animation.Crossfade
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.Canvas // Add import for Canvas
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Backspace
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
+import androidx.compose.material.icons.filled.Add // Add import for Add
+import androidx.compose.material.icons.filled.Close // Add import for Close
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Stop // Add import for Stop
+import androidx.compose.material.icons.filled.MoreVert // Add import for MoreVert
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset // Add import for Offset
+import androidx.compose.ui.geometry.Size // Add import for Size
+import androidx.compose.ui.graphics.StrokeCap // Add import for StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke // Add import for Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -38,107 +33,248 @@ import com.gkprojct.clock.vm.TimerState
 import com.gkprojct.clock.vm.TimerViewModel
 import java.util.concurrent.TimeUnit
 
+@OptIn(ExperimentalMaterial3Api::class) // Add OptIn for Scaffold
 @Composable
 fun TimerScreen(timerViewModel: TimerViewModel = viewModel()) {
     val timeInput by timerViewModel.timeInput.collectAsState()
     val timerState by timerViewModel.timerState.collectAsState()
     val remainingTime by timerViewModel.remainingTime.collectAsState()
+    val initialDuration by timerViewModel.initialDuration.collectAsState() // Get initial duration
     val presets = timerViewModel.presets
     val showStartButton = timeInput.isNotEmpty() && timeInput != "000000" && timerState == TimerState.STOPPED
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.SpaceBetween
-    ) {
-        // Top section: Presets
-        PresetTimersRow(
-            presets = presets,
-            onPresetClick = { durationMillis ->
-                timerViewModel.setInputTime(durationMillis)
-                // Reset state to stopped if a preset is clicked while running/paused
-                if (timerState != TimerState.STOPPED) {
-                    timerViewModel.resetTimer() // Reset also clears input
-                    timerViewModel.setInputTime(durationMillis) // Set input again after reset
+    // Use Scaffold to easily place the FloatingActionButton
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("计时器") },
+                actions = {
+                    IconButton(onClick = { /* TODO: Implement settings menu */ }) {
+                        Icon(Icons.Filled.MoreVert, contentDescription = "更多选项")
+                    }
                 }
-            },
-            enabled = timerState == TimerState.STOPPED // Disable presets when timer is active
-        )
+            )
+        },
+        floatingActionButton = {
+            // Show FAB only when a timer is running or paused
+            if (timerState != TimerState.STOPPED) {
+                FloatingActionButton(
+                    onClick = { /* TODO: Implement adding a new timer */ },
+                    shape = CircleShape
+                ) {
+                    Icon(Icons.Filled.Add, contentDescription = "添加计时器")
+                }
+            }
+        },
+        floatingActionButtonPosition = FabPosition.Center // Center the FAB
+    ) { paddingValues ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues) // Apply padding from Scaffold
+                .padding(horizontal = 16.dp), // Keep horizontal padding
+            horizontalAlignment = Alignment.CenterHorizontally,
+            // Remove SpaceBetween, arrangement will be handled by Crossfade content
+            // verticalArrangement = Arrangement.SpaceBetween 
+            // Add top padding to account for the TopAppBar
+            modifier = Modifier.padding(top = 8.dp) // Adjust padding as needed
+        ) {
+            // Crossfade between Input UI and Running/Paused UI
+            Crossfade(targetState = timerState == TimerState.STOPPED, label = "TimerStateCrossfade") {
+                isStopped ->
+                if (isStopped) {
+                    // --- Input Mode UI --- (Relatively unchanged, adjust spacing)
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.fillMaxHeight() // Allow Column to take height
+                    ) {
+                        Spacer(modifier = Modifier.height(32.dp))
+                        TimerInputDisplay(timeInput = timeInput)
+                        Spacer(modifier = Modifier.height(16.dp))
+                        PresetTimersRow(
+                            presets = presets,
+                            onPresetClick = { durationMillis ->
+                                timerViewModel.setInputTime(durationMillis)
+                                // If a timer was running/paused, reset it before setting new input
+                                if (timerState != TimerState.STOPPED) {
+                                    timerViewModel.resetTimer()
+                                }
+                                timerViewModel.setInputTime(durationMillis) // Set input after potential reset
+                            },
+                            enabled = timerState == TimerState.STOPPED
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+                        NumberPad { digit ->
+                            when (digit) {
+                                "backspace" -> timerViewModel.deleteDigit()
+                                else -> timerViewModel.appendDigit(digit)
+                            }
+                        }
+                        Spacer(modifier = Modifier.weight(1f)) // Push button to bottom
+                        // Start Button Area
+                        if (showStartButton) {
+                            Button(
+                                onClick = { timerViewModel.startTimerFromInput() },
+                                modifier = Modifier
+                                    .size(72.dp)
+                                    .padding(bottom = 32.dp), // Adjust bottom padding
+                                shape = CircleShape,
+                                contentPadding = PaddingValues(0.dp)
+                            ) {
+                                Icon(
+                                    Icons.Filled.PlayArrow,
+                                    contentDescription = "开始",
+                                    modifier = Modifier.size(ButtonDefaults.IconSize * 1.5f)
+                                )
+                            }
+                        } else {
+                            Spacer(modifier = Modifier.height(72.dp + 32.dp)) // Placeholder space
+                        }
+                    }
+                } else {
+                    // --- Running/Paused/Overtime Mode UI --- (Updated Implementation)
+                    Column(
+                        modifier = Modifier.fillMaxSize(),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        // Top Bar: Timer Title and Cancel Button
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 16.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = formatDurationToTimerTitle(initialDuration), // Display formatted initial duration
+                                style = MaterialTheme.typography.titleMedium
+                            )
+                            IconButton(onClick = { timerViewModel.resetTimer() }) {
+                                Icon(Icons.Filled.Close, contentDescription = "取消计时器")
+                            }
+                        }
 
-        // Middle section: Timer Display or Input Pad
-        Crossfade(targetState = timerState == TimerState.STOPPED) {
-            isStopped ->
-            if (isStopped) {
-                // Input Mode
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Spacer(modifier = Modifier.height(32.dp))
-                    TimerInputDisplay(timeInput = timeInput)
-                    Spacer(modifier = Modifier.height(32.dp))
-                    NumberPad {
-                        when (it) {
-                            "backspace" -> timerViewModel.deleteDigit()
-                            else -> timerViewModel.appendDigit(it)
+                        Spacer(modifier = Modifier.weight(0.5f)) // Add space above circle
+
+                        // Center Area: Circular Progress and Time
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth(0.75f) // Control the size of the circle area
+                                .aspectRatio(1f),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            CircularTimer( // Extracted Composable for circle
+                                remainingTime = remainingTime,
+                                initialDuration = initialDuration
+                            )
+                            // Updated TimerDisplay to handle negative time
+                            TimerDisplay(timeMillis = remainingTime, isOvertime = remainingTime < 0)
+                        }
+
+                        Spacer(modifier = Modifier.weight(0.5f)) // Add space below circle
+
+                        // Bottom Controls: +1:00 and Stop Button
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(bottom = 80.dp), // Add padding to avoid FAB overlap
+                            horizontalArrangement = Arrangement.SpaceEvenly, // Use SpaceEvenly for better spacing
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            // +1:00 Button (Rounded)
+                            Button(
+                                onClick = { timerViewModel.addMinute() },
+                                shape = RoundedCornerShape(24.dp), // More rounded rectangle
+                                modifier = Modifier.height(60.dp).width(120.dp), // Adjust size
+                                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
+                            ) {
+                                Text("+1:00", color = MaterialTheme.colorScheme.onSecondaryContainer, fontSize = 16.sp)
+                            }
+
+                            // Stop Button (Square-ish)
+                            Button(
+                                onClick = { timerViewModel.resetTimer() }, // Stop button resets the timer
+                                shape = RoundedCornerShape(16.dp), // Square-ish shape
+                                modifier = Modifier.size(80.dp), // Keep size
+                                contentPadding = PaddingValues(0.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.Stop, // Use Stop icon
+                                    contentDescription = "停止",
+                                    modifier = Modifier.size(ButtonDefaults.IconSize * 1.5f),
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
                         }
                     }
                 }
-            } else {
-                // Running/Paused Mode
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center,
-                    modifier = Modifier.weight(1f) // Take available space
-                ) {
-                    TimerDisplay(timeMillis = remainingTime)
-                    Spacer(modifier = Modifier.height(48.dp))
-                    TimerControls(
-                        timerState = timerState,
-                        onStartPauseResume = {
-                            when (timerState) {
-                                TimerState.RUNNING -> timerViewModel.pauseTimer()
-                                TimerState.PAUSED -> timerViewModel.resumeTimer()
-                                else -> {} // Should not happen here
-                            }
-                        },
-                        onReset = { timerViewModel.resetTimer() }
-                    )
-                }
             }
-        }
-
-        // Bottom section: Start Button or Spacer
-        if (timerState == TimerState.STOPPED) {
-            if (showStartButton) {
-                Button(
-                    onClick = { timerViewModel.startTimerFromInput() },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 32.dp, vertical = 16.dp)
-                ) {
-                    Text("开始")
-                }
-            } else {
-                // Keep space for the button even when hidden
-                Spacer(modifier = Modifier.height(ButtonDefaults.MinHeight + 32.dp))
-            }
-        } else {
-            // Add a spacer at the bottom when controls are shown
-            Spacer(modifier = Modifier.height(ButtonDefaults.MinHeight + 32.dp))
         }
     }
 }
 
-// Timer display when running/paused
+// Helper to format duration (e.g., 10000ms -> "10s Timer")
+fun formatDurationToTimerTitle(durationMillis: Long): String {
+    if (durationMillis <= 0) return "计时器" // Default title
+    val totalSeconds = TimeUnit.MILLISECONDS.toSeconds(durationMillis)
+    val hours = totalSeconds / 3600
+    val minutes = (totalSeconds % 3600) / 60
+    val seconds = totalSeconds % 60
+
+    return when {
+        hours > 0 -> String.format("%dh %dm %ds 计时器", hours, minutes, seconds)
+        minutes > 0 -> String.format("%dm %ds 计时器", minutes, seconds)
+        else -> String.format("%ds 计时器", seconds)
+    }
+}
+
 @Composable
-fun TimerDisplay(timeMillis: Long) {
+fun CircularTimer(remainingTime: Long, initialDuration: Long) {
+    val progress = if (initialDuration > 0) remainingTime.toFloat() / initialDuration.toFloat() else 0f
+    val circleColor = MaterialTheme.colorScheme.primary
+    val backgroundColor = MaterialTheme.colorScheme.surfaceVariant
+    val strokeWidth = 12.dp
+
+    Canvas(modifier = Modifier.fillMaxSize()) {
+        val diameter = size.minDimension
+        val radius = diameter / 2f
+        val topLeft = Offset(0f, 0f)
+        val strokePx = strokeWidth.toPx()
+
+        // Background circle
+        drawCircle(
+            color = backgroundColor,
+            radius = radius - strokePx / 2f,
+            center = center,
+            style = Stroke(width = strokePx)
+        )
+
+        // Foreground arc
+        drawArc(
+            color = circleColor,
+            startAngle = -90f, // Start from the top
+            sweepAngle = progress * 360f,
+            useCenter = false,
+            topLeft = topLeft,
+            size = Size(diameter, diameter),
+            style = Stroke(width = strokePx, cap = StrokeCap.Round)
+        )
+    }
+}
+
+// Timer display when running/paused (Style adjustments)
+@Composable
+fun TimerDisplay(timeMillis: Long, isOvertime: Boolean) {
     val formattedTime = formatTimeHMS(timeMillis)
     Text(
         text = formattedTime,
         style = MaterialTheme.typography.displayLarge.copy(
-            fontSize = 48.sp, // Consistent smaller font size
-            fontWeight = FontWeight.Light // Consistent lighter font weight
-        )
+            fontSize = 56.sp, // Slightly larger font inside circle
+            fontWeight = FontWeight.Normal // Normal weight might look better
+        ),
+        color = MaterialTheme.colorScheme.onSurface // Ensure text color is appropriate
     )
 }
 
@@ -186,21 +322,27 @@ fun NumberPad(onKeyPress: (String) -> Unit) {
         listOf("00", "0", "backspace")
     )
 
-    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
         buttons.forEach { row ->
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceEvenly, // Use SpaceEvenly for better spacing
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 row.forEach { key ->
                     Button(
                         onClick = { onKeyPress(key) },
-                        modifier = Modifier.size(72.dp), // Adjust size as needed
-                        shape = CircleShape,
-                        contentPadding = PaddingValues(0.dp), // Remove default padding
-                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surfaceVariant) // Match dark theme
+                        modifier = Modifier
+                            .size(72.dp) // Make buttons square for circular shape
+                            .padding(4.dp), // Add padding between buttons
+                        shape = CircleShape, // Make buttons circular
+                        colors = ButtonDefaults.filledTonalButtonColors(), // Use tonal buttons
+                        contentPadding = PaddingValues(0.dp)
                     ) {
                         if (key == "backspace") {
-                            Icon(Icons.AutoMirrored.Filled.Backspace, contentDescription = "Delete")
+                            Icon(Icons.AutoMirrored.Filled.Backspace, contentDescription = "删除")
                         } else {
-                            Text(text = key, fontSize = 24.sp)
+                            Text(text = key, fontSize = 20.sp)
                         }
                     }
                 }
@@ -209,13 +351,11 @@ fun NumberPad(onKeyPress: (String) -> Unit) {
     }
 }
 
-
-// --- Updated PresetTimersRow --- 
 @Composable
 fun PresetTimersRow(
     presets: List<TimerPreset>,
     onPresetClick: (Long) -> Unit,
-    enabled: Boolean // Add enabled state
+    enabled: Boolean
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -224,55 +364,89 @@ fun PresetTimersRow(
         presets.forEach { preset ->
             Button(
                 onClick = { onPresetClick(preset.durationMillis) },
-                enabled = enabled, // Control enabled state
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                    disabledContainerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f) // Dim when disabled
-                )
+                enabled = enabled,
+                shape = RoundedCornerShape(16.dp), // Rounded corners
+                colors = ButtonDefaults.filledTonalButtonColors()
             ) {
                 Text(preset.name)
             }
         }
     }
 }
-// --- End of PresetTimersRow ---
 
-// --- Updated TimerControls --- 
-@Composable
-fun TimerControls(
-    timerState: TimerState,
-    onStartPauseResume: () -> Unit,
-    onReset: () -> Unit
-) {
-    Row(
-        horizontalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
-        // Reset Button (often on the left)
-        Button(onClick = onReset) {
-            Text("重置") // Changed to Chinese
-        }
-        // Pause/Resume Button (often on the right)
-        Button(onClick = onStartPauseResume) {
-            Text(if (timerState == TimerState.RUNNING) "暂停" else "继续") // Changed to Chinese
-        }
-    }
-}
-// --- End of TimerControls ---
-
-// --- formatTimeHMS (Used by TimerDisplay) ---
+// Format time to HH:MM:SS or MM:SS or SS
 fun formatTimeHMS(timeMillis: Long): String {
-    val totalSeconds = TimeUnit.MILLISECONDS.toSeconds(timeMillis)
+    val totalSeconds = TimeUnit.MILLISECONDS.toSeconds(timeMillis).coerceAtLeast(0)
     val hours = totalSeconds / 3600
     val minutes = (totalSeconds % 3600) / 60
     val seconds = totalSeconds % 60
-    // Format as HH:MM:SS for the running display
-    return String.format(java.util.Locale.US, "%02d:%02d:%02d",
-        (hours % 100).coerceAtLeast(0), // Show hours up to 99, handle potential negative
-        minutes.coerceAtLeast(0),
-        seconds.coerceAtLeast(0)
-    )
+
+    return when {
+        hours > 0 -> String.format("%d:%02d:%02d", hours, minutes, seconds)
+        minutes > 0 -> String.format("%d:%02d", minutes, seconds)
+        else -> String.format("%d", seconds)
+    }
 }
-// --- End of formatTimeHMS ---
+
+// Format time from HHMMSS input string for display
+fun formatTimeHmsInput(input: String): String {
+    if (input.length != 6) return "0:00"
+    val hours = input.substring(0, 2).toIntOrNull() ?: 0
+    val minutes = input.substring(2, 4).toIntOrNull() ?: 0
+    val seconds = input.substring(4, 6).toIntOrNull() ?: 0
+
+    return when {
+        hours > 0 -> String.format("%d:%02d:%02d", hours, minutes, seconds)
+        minutes > 0 -> String.format("%d:%02d", minutes, seconds)
+        else -> String.format("%d", seconds)
+    }
+}
+
+// --- Previews --- (Update if necessary)
+@RequiresApi(Build.VERSION_CODES.O)
+@Preview(showBackground = true, name = "Timer Screen - Stopped")
+@Composable
+fun TimerScreenPreviewStopped() {
+    ClockTheme {
+        // Provide a mock ViewModel or state for preview
+        val mockViewModel = TimerViewModel()
+        TimerScreen(timerViewModel = mockViewModel)
+    }
+}
+
+@RequiresApi(Build.VERSION_CODES.O)
+@Preview(showBackground = true, name = "Timer Screen - Running")
+@Composable
+fun TimerScreenPreviewRunning() {
+    ClockTheme {
+        val mockViewModel = TimerViewModel()
+        // Simulate running state for preview
+        LaunchedEffect(Unit) {
+            mockViewModel.setInputTime(10000) // 10 seconds
+            mockViewModel.startTimerFromInput()
+            // Let it run for a bit
+            kotlinx.coroutines.delay(2000)
+        }
+        TimerScreen(timerViewModel = mockViewModel)
+    }
+}
+
+@RequiresApi(Build.VERSION_CODES.O)
+@Preview(showBackground = true, name = "Timer Screen - Paused")
+@Composable
+fun TimerScreenPreviewPaused() {
+    ClockTheme {
+        val mockViewModel = TimerViewModel()
+        // Simulate paused state for preview
+        LaunchedEffect(Unit) {
+            mockViewModel.setInputTime(30000) // 30 seconds
+            mockViewModel.startTimerFromInput()
+            kotlinx.coroutines.delay(5000)
+            mockViewModel.pauseTimer()
+        }
+        TimerScreen(timerViewModel = mockViewModel)
+    }
+}
 
 
 @RequiresApi(Build.VERSION_CODES.R)

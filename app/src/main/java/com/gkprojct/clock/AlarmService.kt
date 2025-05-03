@@ -3,7 +3,8 @@ import android.content.Intent
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
 import com.gkprojct.clock.AlarmReceiver
-import com.gkprojct.clock.MainActivity
+import com.gkprojct.clock.MainActivity // Ensure this import is present
+import android.content.Context // Add context import
 
 class AlarmService : Service() {
     companion object {
@@ -34,14 +35,15 @@ class AlarmService : Service() {
     }
 
     private fun createNotification() {
-        val pendingIntent = Intent(this, MainActivity::class.java).let { intent ->
-            PendingIntent.getActivity(
-                this,
-                0,
-                intent,
-                PendingIntent.FLAG_IMMUTABLE
-            )
-        }
+        // Correct the PendingIntent.getActivity call
+        val notificationIntent = Intent(this, MainActivity::class.java)
+        // Ensure flags are correctly combined and context is appropriate
+        val pendingIntent: PendingIntent = PendingIntent.getActivity(
+            this, // context
+            0, // requestCode
+            notificationIntent, // intent
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT // flags
+        )
 
         val builder = NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("Clock Service")

@@ -80,9 +80,10 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.0")
     implementation("androidx.compose.runtime:runtime-livedata:1.6.8")
     implementation("com.google.code.gson:gson:2.10.1")
+    implementation("androidx.test:core:1.6.1")
     implementation("androidx.test:runner:1.6.2")
     implementation("androidx.test:rules:1.6.1")// Use the latest stable version if needed
-
+    implementation("androidx.test.ext:junit:1.1.5")
     // 使用已定义的 junit 版本
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)

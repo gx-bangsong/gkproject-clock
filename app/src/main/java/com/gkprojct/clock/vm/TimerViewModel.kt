@@ -103,6 +103,7 @@ class TimerViewModel : ViewModel() {
     private fun startTimer(durationMillis: Long) {
         if (_timerState.value == TimerState.RUNNING) return
 
+        // Only set initial duration and remaining time if starting from stopped state
         if (_timerState.value == TimerState.STOPPED) {
             this.initialDurationMillis = durationMillis
             this._initialDuration.value = durationMillis // Set initial duration state
@@ -112,15 +113,19 @@ class TimerViewModel : ViewModel() {
         _timerState.value = TimerState.RUNNING
         timerJob?.cancel()
         timerJob = viewModelScope.launch {
+            // Calculate start time based on initial duration and current remaining time
+            // This handles resuming correctly
             val startTime = System.currentTimeMillis() - (initialDurationMillis - _remainingTime.value)
             while (_timerState.value == TimerState.RUNNING) {
                 val elapsed = System.currentTimeMillis() - startTime
-                _remainingTime.value = (initialDurationMillis - elapsed).coerceAtLeast(0L)
-                if (_remainingTime.value == 0L) {
-                    stopTimer() // Stop automatically when time reaches zero
-                    // TODO: Add notification or sound feedback here
-                    break
-                }
+                // Allow remaining time to go negative
+                _remainingTime.value = initialDurationMillis - elapsed
+                // No automatic stop at 0 anymore
+                // if (_remainingTime.value == 0L) {
+                //     stopTimer() // Stop automatically when time reaches zero
+                //     // TODO: Add notification or sound feedback here
+                //     break
+                // }
                 delay(50) // Update more frequently for smoother display
             }
         }
@@ -128,18 +133,20 @@ class TimerViewModel : ViewModel() {
 
     fun addMinute() {
         if (_timerState.value == TimerState.RUNNING || _timerState.value == TimerState.PAUSED) {
+            // Add 60 seconds regardless of whether the timer is positive or negative
             val newRemainingTime = _remainingTime.value + 60000L
             _remainingTime.value = newRemainingTime
 
-            // Also update initial duration so progress calculation remains correct
-            _initialDuration.value += 60000L
-
-            // If paused and time was 0, we need to potentially restart the timer logic
-            if (_timerState.value == TimerState.PAUSED && _remainingTime.value > 0 && timerJob?.isCompleted == true) {
-                // The timer loop finished, but we added time while paused.
-                // We might need to re-initiate the timer logic upon resuming.
-                // For now, just updating the time is sufficient. Resuming will handle it.
+            // Also update initial duration so progress calculation remains correct if needed
+            // Only increase initial duration if we are adding time *before* it hits zero
+            // If already negative, adding a minute doesn't change the *original* duration.
+            if (initialDurationMillis > 0 && _remainingTime.value > 0) {
+                 _initialDuration.value += 60000L
+                 initialDurationMillis += 60000L // Keep internal variable consistent
             }
+
+            // If paused and time was 0 or negative, resuming will handle the timer loop.
+            // No special handling needed here anymore.
         }
     }
 
@@ -153,7 +160,9 @@ class TimerViewModel : ViewModel() {
     // Resume timer function
     fun resumeTimer() {
         if (_timerState.value == TimerState.PAUSED) {
-            startTimer(_initialDuration.value) // Restart the timer logic with the current initial duration
+            // Simply call startTimer again. It will use the current _remainingTime
+            // and initialDurationMillis to calculate the correct starting point.
+            startTimer(initialDurationMillis) 
         }
     }
 
@@ -165,8 +174,9 @@ class TimerViewModel : ViewModel() {
     private fun stopTimer() {
         _timerState.value = TimerState.STOPPED
         timerJob?.cancel()
-        _remainingTime.value = 0L
+        _remainingTime.value = 0L // Reset remaining time to 0
         _initialDuration.value = 0L // Reset initial duration when fully stopped
+        initialDurationMillis = 0L // Reset internal variable
         // Don't reset _timeInput here, resetTimer handles that
     }
 
