@@ -28,6 +28,7 @@ class AlarmReceiver : BroadcastReceiver() {
             try {
                 val db = AppDatabase.getDatabase(context.applicationContext)
                 val ruleDao = db.ruleDao()
+                val alarmDao = db.alarmDao()
                 val ruleEngine = RuleEngine(context.contentResolver)
                 val rules = ruleDao.getAllRules().first()
 
@@ -36,19 +37,17 @@ class AlarmReceiver : BroadcastReceiver() {
 
                 val alarmIdStr = intent.getStringExtra("ALARM_ID")
                 if (alarmIdStr == null) {
-                    // No alarm ID, show notification as normal
-                    withContext(Dispatchers.Main) {
-                        showNotification(context)
-                    }
+                    withContext(Dispatchers.Main) { showNotification(context) }
                     return@launch
                 }
 
                 val alarmId = UUID.fromString(alarmIdStr)
+                val originalAlarmEntity = alarmDao.getAlarmById(alarmId)
 
-                for (ruleEntity in rules) {
-                    if (!ruleEntity.enabled) continue
+                if (originalAlarmEntity != null) {
+                    for (ruleEntity in rules) {
+                        if (!ruleEntity.enabled || !ruleEntity.targetAlarmIds.contains(alarmId)) continue
 
-                    if (ruleEntity.targetAlarmIds.contains(alarmId)) {
                         val rule = Rule(
                             id = ruleEntity.id,
                             name = ruleEntity.name,
@@ -72,20 +71,51 @@ class AlarmReceiver : BroadcastReceiver() {
                             }
                         }
                     }
-                }
 
-                if (shouldSkip) {
-                    Log.d("AlarmReceiver", "Alarm skipped by a rule.")
-                } else if (adjustedTime != null) {
-                    Log.d("AlarmReceiver", "Alarm adjusted to $adjustedTime by a rule.")
-                    // TODO: Reschedule the alarm
-                    // For now, we just show the original notification.
-                    withContext(Dispatchers.Main) {
-                        showNotification(context)
+                    if (shouldSkip) {
+                        Log.d("AlarmReceiver", "Alarm ${originalAlarmEntity.label} skipped by a rule.")
+                    } else if (adjustedTime != null) {
+                        Log.d("AlarmReceiver", "Alarm ${originalAlarmEntity.label} adjusted to $adjustedTime by a rule.")
+                        val originalCalendar = Calendar.getInstance().apply { timeInMillis = originalAlarmEntity.timeInMillis }
+                        val adjustedCalendar = (originalCalendar.clone() as Calendar).apply {
+                            set(Calendar.HOUR_OF_DAY, adjustedTime!!.hour)
+                            set(Calendar.MINUTE, adjustedTime!!.minute)
+                            set(Calendar.SECOND, 0)
+                            set(Calendar.MILLISECOND, 0)
+                        }
+
+                        if (adjustedCalendar.before(Calendar.getInstance())) {
+                            adjustedCalendar.add(Calendar.DAY_OF_YEAR, 1)
+                        }
+
+                        val adjustedAlarm = Alarm(
+                            id = UUID.randomUUID(),
+                            time = adjustedCalendar,
+                            label = "${originalAlarmEntity.label} (Adjusted)",
+                            isEnabled = true,
+                            repeatingDays = emptySet()
+                        )
+                        AlarmScheduler.schedule(context, adjustedAlarm)
+                        Log.d("AlarmReceiver", "Scheduled adjusted alarm for ${adjustedAlarm.time.time}")
+                    } else {
+                        withContext(Dispatchers.Main) {
+                            showNotification(context)
+                        }
                     }
-                } else {
-                    withContext(Dispatchers.Main) {
-                        showNotification(context)
+
+                    if (originalAlarmEntity.repeatingDays.isNotEmpty()) {
+                        val originalAlarm = Alarm(
+                            id = originalAlarmEntity.id,
+                            time = Calendar.getInstance().apply { timeInMillis = originalAlarmEntity.timeInMillis },
+                            label = originalAlarmEntity.label,
+                            isEnabled = originalAlarmEntity.isEnabled,
+                            repeatingDays = originalAlarmEntity.repeatingDays,
+                            sound = originalAlarmEntity.sound,
+                            vibrate = originalAlarmEntity.vibrate,
+                            appliedRules = originalAlarmEntity.appliedRules
+                        )
+                        AlarmScheduler.schedule(context, originalAlarm)
+                        Log.d("AlarmReceiver", "Rescheduled repeating alarm: ${originalAlarm.label}")
                     }
                 }
             } finally {

@@ -27,7 +27,6 @@ import java.time.format.DateTimeFormatter
 import java.time.format.DateTimeParseException
 
 @OptIn(ExperimentalMaterial3Api::class)
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RuleCriteriaDefinitionScreen(
     initialCriteria: RuleCriteria,
@@ -37,22 +36,23 @@ fun RuleCriteriaDefinitionScreen(
 ) {
     var currentCriteriaType by remember { mutableStateOf(initialCriteria) }
 
-    // --- State for IfCalendarEventExists ---
     var calendarEventKeywordsText by remember { mutableStateOf(if (initialCriteria is RuleCriteria.IfCalendarEventExists) initialCriteria.keywords.joinToString(", ") else "") }
     var calendarEventTimeRangeText by remember { mutableStateOf(if (initialCriteria is RuleCriteria.IfCalendarEventExists) initialCriteria.timeRangeMinutes.toString() else "0") }
     var isAllDayEvent by remember { mutableStateOf(if (initialCriteria is RuleCriteria.IfCalendarEventExists) initialCriteria.allDay else false) }
 
-    // --- State for BasedOnTime ---
     var startTimeText by remember { mutableStateOf(if (initialCriteria is RuleCriteria.BasedOnTime) initialCriteria.startTime.format(DateTimeFormatter.ofPattern("HH:mm")) else "00:00") }
     var endTimeText by remember { mutableStateOf(if (initialCriteria is RuleCriteria.BasedOnTime) initialCriteria.endTime.format(DateTimeFormatter.ofPattern("HH:mm")) else "23:59") }
     var timeInputError by remember { mutableStateOf<String?>(null) }
 
-    // --- State for ShiftWork ---
     var cycleDaysText by remember { mutableStateOf(if (initialCriteria is RuleCriteria.ShiftWork) initialCriteria.cycleDays.toString() else "4") }
     var shiftsPerCycleText by remember { mutableStateOf(if (initialCriteria is RuleCriteria.ShiftWork) initialCriteria.shiftsPerCycle.toString() else "2") }
     var shiftStartDate by remember { mutableStateOf(if (initialCriteria is RuleCriteria.ShiftWork) Instant.ofEpochMilli(initialCriteria.startDate).atZone(ZoneId.systemDefault()).toLocalDate() else LocalDate.now()) }
     var showDatePicker by remember { mutableStateOf(false) }
     var shiftWorkHolidayHandling by remember { mutableStateOf(if (initialCriteria is RuleCriteria.ShiftWork) initialCriteria.holidayHandling else HolidayHandlingStrategy.NORMAL_SCHEDULE) }
+    val holidayCalendarIds by remember(initialCriteria) {
+        mutableStateOf(if (initialCriteria is RuleCriteria.ShiftWork) initialCriteria.holidayCalendarIds else emptySet())
+    }
+
 
     val criteriaTypesWithDescription = remember {
         listOf(
@@ -69,21 +69,14 @@ fun RuleCriteriaDefinitionScreen(
                 title = { Text("定义规则条件") },
                 navigationIcon = { IconButton(onClick = onBackClick) { Icon(Icons.Filled.ArrowBack, contentDescription = "返回") } },
                 actions = {
-                    val currentType = currentCriteriaType
-                    if (currentType !is RuleCriteria.AlwaysTrue) {
+                    if (currentCriteriaType !is RuleCriteria.AlwaysTrue) {
                         IconButton(onClick = {
-                            val criteriaToSave = when (currentType) {
-                                is RuleCriteria.IfCalendarEventExists -> {
-                                    val keywords = calendarEventKeywordsText.split(",").map { it.trim() }.filter { it.isNotBlank() }
-                                    val timeRange = calendarEventTimeRangeText.toIntOrNull() ?: 0
-                                    RuleCriteria.IfCalendarEventExists(keywords, timeRange, isAllDayEvent)
-                                }
+                            val criteriaToSave = when (currentCriteriaType) {
+                                is RuleCriteria.IfCalendarEventExists -> RuleCriteria.IfCalendarEventExists(calendarEventKeywordsText.split(",").map { it.trim() }.filter { it.isNotBlank() }, calendarEventTimeRangeText.toIntOrNull() ?: 0, isAllDayEvent)
                                 is RuleCriteria.BasedOnTime -> {
                                     try {
-                                        val startTime = LocalTime.parse(startTimeText, DateTimeFormatter.ofPattern("HH:mm"))
-                                        val endTime = LocalTime.parse(endTimeText, DateTimeFormatter.ofPattern("HH:mm"))
                                         timeInputError = null
-                                        RuleCriteria.BasedOnTime(startTime, endTime)
+                                        RuleCriteria.BasedOnTime(LocalTime.parse(startTimeText, DateTimeFormatter.ofPattern("HH:mm")), LocalTime.parse(endTimeText, DateTimeFormatter.ofPattern("HH:mm")))
                                     } catch (e: DateTimeParseException) {
                                         timeInputError = "时间格式错误，请使用 HH:mm 格式"
                                         null
@@ -92,33 +85,25 @@ fun RuleCriteriaDefinitionScreen(
                                 is RuleCriteria.ShiftWork -> {
                                     val cycleDays = cycleDaysText.toIntOrNull() ?: 0
                                     val shiftsPerCycle = shiftsPerCycleText.toIntOrNull() ?: 0
-                                    val startDateMillis = shiftStartDate.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
                                     if (cycleDays > 0 && shiftsPerCycle > 0) {
-                                        RuleCriteria.ShiftWork(cycleDays, shiftsPerCycle, startDateMillis, 0, emptySet(), shiftWorkHolidayHandling)
-                                    } else {
-                                        null // Invalid input
-                                    }
+                                        RuleCriteria.ShiftWork(cycleDays, shiftsPerCycle, shiftStartDate.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli(), 0, holidayCalendarIds, shiftWorkHolidayHandling)
+                                    } else { null }
                                 }
-                                else -> null
+                                else -> currentCriteriaType
                             }
                             criteriaToSave?.let { onCriteriaSelected(it) }
-                        }) {
-                            Icon(Icons.Filled.Save, contentDescription = "保存条件")
-                        }
+                        }) { Icon(Icons.Filled.Save, contentDescription = "保存条件") }
                     }
                 }
             )
         }
     ) { paddingValues ->
         Column(Modifier.padding(paddingValues).padding(16.dp)) {
-            // UI for selecting criteria type
             var expanded by remember { mutableStateOf(false) }
             ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = !expanded }) {
                 OutlinedTextField(
                     value = criteriaTypesWithDescription.find { it.criteria::class == currentCriteriaType::class }?.name ?: "选择条件类型",
-                    onValueChange = {},
-                    readOnly = true,
-                    label = { Text("条件类型") },
+                    onValueChange = {}, readOnly = true, label = { Text("条件类型") },
                     trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
                     modifier = Modifier.menuAnchor().fillMaxWidth()
                 )
@@ -129,9 +114,7 @@ fun RuleCriteriaDefinitionScreen(
                             onClick = {
                                 currentCriteriaType = selection.criteria
                                 expanded = false
-                                if (selection.criteria is RuleCriteria.AlwaysTrue) {
-                                    onCriteriaSelected(selection.criteria)
-                                }
+                                if (selection.criteria is RuleCriteria.AlwaysTrue) onCriteriaSelected(selection.criteria)
                             }
                         )
                     }
@@ -141,10 +124,7 @@ fun RuleCriteriaDefinitionScreen(
             Divider()
             Spacer(Modifier.height(16.dp))
 
-            when (val current = currentCriteriaType) {
-                is RuleCriteria.AlwaysTrue -> {
-                    Text("此规则将始终处于启用状态，除非您手动禁用它。")
-                }
+            when (currentCriteriaType) {
                 is RuleCriteria.IfCalendarEventExists -> {
                     OutlinedTextField(value = calendarEventKeywordsText, onValueChange = { calendarEventKeywordsText = it }, label = { Text("关键词 (用逗号分隔)") }, modifier = Modifier.fillMaxWidth())
                     Spacer(Modifier.height(16.dp))
@@ -155,70 +135,53 @@ fun RuleCriteriaDefinitionScreen(
                         Text("全天事件")
                     }
                 }
-                is RuleCriteria.BasedOnTime -> {
-                    OutlinedTextField(value = startTimeText, onValueChange = { startTimeText = it }, label = { Text("开始时间 (HH:mm)") }, modifier = Modifier.fillMaxWidth())
-                    Spacer(Modifier.height(16.dp))
-                    OutlinedTextField(value = endTimeText, onValueChange = { endTimeText = it }, label = { Text("结束时间 (HH:mm)") }, modifier = Modifier.fillMaxWidth())
-                    timeInputError?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
-                }
                 is RuleCriteria.ShiftWork -> {
                     OutlinedTextField(value = cycleDaysText, onValueChange = { cycleDaysText = it }, label = { Text("轮班周期 (天)") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.fillMaxWidth())
                     Spacer(Modifier.height(16.dp))
                     OutlinedTextField(value = shiftsPerCycleText, onValueChange = { shiftsPerCycleText = it }, label = { Text("周期内班次数") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.fillMaxWidth())
                     Spacer(Modifier.height(16.dp))
-                    Button(onClick = { showDatePicker = true }) {
-                        Text("选择开始日期: ${shiftStartDate.format(DateTimeFormatter.ofPattern("yyyy-MM-dd"))}")
-                    }
+                    Button(onClick = { showDatePicker = true }) { Text("选择开始日期: ${shiftStartDate.format(DateTimeFormatter.ofPattern("yyyy-MM-dd"))}") }
                     Spacer(Modifier.height(16.dp))
-                    Button(onClick = onSelectHolidayCalendarsClick) {
-                        Text("选择假日日历")
-                    }
+                    Button(onClick = onSelectHolidayCalendarsClick) { Text("选择假日日历 (${holidayCalendarIds.size} selected)") }
                     Spacer(Modifier.height(16.dp))
+
                     var strategyExpanded by remember { mutableStateOf(false) }
                     ExposedDropdownMenuBox(expanded = strategyExpanded, onExpandedChange = { strategyExpanded = !strategyExpanded }) {
                         OutlinedTextField(
-                            value = shiftWorkHolidayHandling.name,
-                            onValueChange = {},
-                            readOnly = true,
-                            label = { Text("假日处理方式") },
+                            value = when(shiftWorkHolidayHandling) {
+                                HolidayHandlingStrategy.NORMAL_SCHEDULE -> "假日后正常排班"
+                                HolidayHandlingStrategy.POSTPONE_SCHEDULE -> "假日后顺延排班"
+                            },
+                            onValueChange = {}, readOnly = true, label = { Text("假日处理方式") },
                             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = strategyExpanded) },
                             modifier = Modifier.menuAnchor().fillMaxWidth()
                         )
                         ExposedDropdownMenu(expanded = strategyExpanded, onDismissRequest = { strategyExpanded = false }) {
-                            HolidayHandlingStrategy.values().forEach { strategy ->
-                                DropdownMenuItem(
-                                    text = { Text(strategy.name) },
-                                    onClick = {
-                                        shiftWorkHolidayHandling = strategy
-                                        strategyExpanded = false
-                                    }
-                                )
-                            }
+                            DropdownMenuItem(text = { Text("假日后正常排班") }, onClick = { shiftWorkHolidayHandling = HolidayHandlingStrategy.NORMAL_SCHEDULE; strategyExpanded = false })
+                            DropdownMenuItem(text = { Text("假日后顺延排班") }, onClick = { shiftWorkHolidayHandling = HolidayHandlingStrategy.POSTPONE_SCHEDULE; strategyExpanded = false })
                         }
                     }
+
                     if (showDatePicker) {
                         val datePickerState = rememberDatePickerState(initialSelectedDateMillis = shiftStartDate.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli())
                         DatePickerDialog(
                             onDismissRequest = { showDatePicker = false },
                             confirmButton = {
                                 TextButton(onClick = {
-                                    datePickerState.selectedDateMillis?.let {
-                                        shiftStartDate = Instant.ofEpochMilli(it).atZone(ZoneId.systemDefault()).toLocalDate()
-                                    }
+                                    datePickerState.selectedDateMillis?.let { shiftStartDate = Instant.ofEpochMilli(it).atZone(ZoneId.systemDefault()).toLocalDate() }
                                     showDatePicker = false
                                 }) { Text("确认") }
                             },
                             dismissButton = { TextButton(onClick = { showDatePicker = false }) { Text("取消") } }
-                        ) {
-                            DatePicker(state = datePickerState)
-                        }
+                        ) { DatePicker(state = datePickerState) }
                     }
                 }
+                else -> {}
             }
         }
     }
 }
-
+// ... Preview and other data classes
 data class CriteriaTypeInfo(
     val criteria: RuleCriteria,
     val name: String,
@@ -232,7 +195,8 @@ fun RuleCriteriaDefinitionScreenPreview() {
         RuleCriteriaDefinitionScreen(
             initialCriteria = RuleCriteria.ShiftWork(4, 2, System.currentTimeMillis(), 0),
             onBackClick = {},
-            onCriteriaSelected = {}
+            onCriteriaSelected = {},
+            onSelectHolidayCalendarsClick = {}
         )
     }
 }
