@@ -19,6 +19,7 @@ data class RuleEntity(
     val enabled: Boolean,
     val targetAlarmIds: Set<UUID>,
     val calendarIds: Set<Long>,
-    val criteria: RuleCriteria // <-- **确保 RuleEntity 包含 criteria 字段**
+    val criteria: RuleCriteria,
+    val action: com.gkprojct.clock.RuleAction
 )
 // ------------------------------------

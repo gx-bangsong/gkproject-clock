@@ -22,14 +22,32 @@ data class Rule(
     val enabled: Boolean = true,
     val targetAlarmIds: Set<UUID> = emptySet(),
     val calendarIds: Set<Long> = emptySet(),
-    val criteria: RuleCriteria = RuleCriteria.AlwaysTrue
+    val criteria: RuleCriteria = RuleCriteria.AlwaysTrue,
+    val action: RuleAction = RuleAction.SkipNextAlarm // Default action
 )
 
 // 规则判断条件的密封类
 sealed class RuleCriteria {
     object AlwaysTrue : RuleCriteria()
-    data class IfCalendarEventExists(val keywords: List<String>, val timeRangeMinutes: Int) : RuleCriteria()
+    data class IfCalendarEventExists(
+        val keywords: List<String>,
+        val timeRangeMinutes: Int,
+        val allDay: Boolean = false // false for specific time, true for all-day event
+    ) : RuleCriteria()
     data class BasedOnTime(val startTime: LocalTime, val endTime: LocalTime) : RuleCriteria()
+enum class HolidayHandlingStrategy {
+    NORMAL_SCHEDULE, // 假日后依然按照排班规则正常排班
+    POSTPONE_SCHEDULE // 假日后按照继续假日前一天的排班
+}
+
+    data class ShiftWork(
+        val cycleDays: Int, // e.g., 4 days
+        val shiftsPerCycle: Int, // e.g., 2 shifts
+        val startDate: Long, // Start date of the cycle in millis
+        val currentShiftIndex: Int,
+        val holidayCalendarIds: Set<Long> = emptySet(),
+        val holidayHandling: HolidayHandlingStrategy = HolidayHandlingStrategy.NORMAL_SCHEDULE
+    ) : RuleCriteria()
     // TODO: Add other specific criteria types
 }
 
