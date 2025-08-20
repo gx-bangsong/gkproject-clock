@@ -32,7 +32,8 @@ class RuleViewModel(private val ruleDao: RuleDao) : ViewModel() {
             enabled = rule.enabled,
             targetAlarmIds = rule.targetAlarmIds,
             calendarIds = rule.calendarIds,
-            criteria = rule.criteria // <-- **确保这里引用的 RuleEntity 有 criteria 参数**
+            criteria = rule.criteria,
+            action = rule.action
         )
         viewModelScope.launch {
             // Room 会根据主键自动判断是插入还是更新
@@ -50,7 +51,8 @@ class RuleViewModel(private val ruleDao: RuleDao) : ViewModel() {
             enabled = rule.enabled,
             targetAlarmIds = rule.targetAlarmIds,
             calendarIds = rule.calendarIds,
-            criteria = rule.criteria // <-- **确保这里引用的 RuleEntity 有 criteria 参数**
+            criteria = rule.criteria,
+            action = rule.action
         )
         viewModelScope.launch {
             ruleDao.deleteRule(ruleEntity)

@@ -2,6 +2,7 @@ package com.gkprojct.clock
 
 import android.content.ContentResolver
 import android.provider.CalendarContract
+import com.gkprojct.clock.HolidayHandlingStrategy
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime

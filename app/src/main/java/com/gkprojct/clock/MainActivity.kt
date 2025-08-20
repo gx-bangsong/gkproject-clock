@@ -18,7 +18,7 @@ import com.gkprojct.clock.vm.AlarmViewModel
 import com.gkprojct.clock.vm.AlarmViewModelFactory
 import com.gkprojct.clock.vm.AppDatabase
 import java.time.DayOfWeek
-import java.util.*
+import java.util.UUID
 
 enum class SettingsScreenType {
     Main, CalendarSelection, RuleManagement, AddEditRule, RuleCalendarSelection, RuleAlarmSelection, RuleCriteriaDefinition, ShiftWorkHolidayCalendarSelection
@@ -97,7 +97,8 @@ fun AppContent() {
                         onSelectCalendarClick = { currentSettingsScreen = SettingsScreenType.CalendarSelection },
                         onManageRulesClick = { currentSettingsScreen = SettingsScreenType.RuleManagement },
                         onCalendarsSelectionDone = saveSelectedCalendarIds,
-                        initialSelectedCalendarIds = initiallySelectedCalendarIds
+                        initialSelectedCalendarIds = initiallySelectedCalendarIds,
+                        onSelectHolidayCalendarsClick = {}
                     )
                     SettingsScreenType.CalendarSelection, SettingsScreenType.RuleCalendarSelection, SettingsScreenType.ShiftWorkHolidayCalendarSelection -> CalendarSelectionScreen(
                         onBackClick = {
@@ -193,8 +194,8 @@ fun AppContent() {
                 Box(modifier = Modifier.fillMaxSize()) { Text("Bedtime setup is not complete (Screens Missing)") }
             } else {
                 when (currentScreenIndex) {
-                    0 -> AlarmScreen(onSettingsClick = { showSettingsScreen = true }, ruleViewModel = ruleViewModel, alarmViewModel = alarmViewModel)
-                    1 -> ClockScreen()
+                    0 -> AlarmScreen(onSettingsClick = { showSettingsScreen = true }, ruleViewModel = ruleViewModel)
+                    1 -> ClockScreen(onSettingsClick = { showSettingsScreen = true })
                     2 -> TimerScreen(timerViewModel = viewModel())
                     3 -> StopwatchScreen(stopwatchViewModel = viewModel())
                     4 -> BedtimeScreen()

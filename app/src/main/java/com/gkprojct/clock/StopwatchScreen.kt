@@ -50,6 +50,25 @@ import com.gkprojct.clock.vm.StopwatchState
 import com.gkprojct.clock.vm.StopwatchViewModel
 
 // Removed onSettingsClick parameter as it's not used in this version
+
+@Composable
+fun StopwatchCircle(elapsedTime: Long) {}
+
+@Composable
+fun TimeDisplay(elapsedTime: Long, formatTime: (Long) -> String) {}
+
+@Composable
+fun LapRow(lap: Lap, index: Int, formatTime: (Long) -> String) {}
+
+@Composable
+fun StopwatchControls(
+    stopwatchState: StopwatchState,
+    onStartClick: () -> Unit,
+    onPauseClick: () -> Unit,
+    onLapClick: () -> Unit,
+    onResetClick: () -> Unit
+) {}
+
 @OptIn(ExperimentalMaterial3Api::class) // Add OptIn for Scaffold
 @Composable
 fun StopwatchScreen(stopwatchViewModel: StopwatchViewModel = viewModel()) {
@@ -294,5 +313,4 @@ fun StopwatchScreenPreviewDark() {
     MaterialTheme {
         StopwatchScreen()
     }
-}
 }

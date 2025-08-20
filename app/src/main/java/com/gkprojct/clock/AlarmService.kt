@@ -1,3 +1,5 @@
+package com.gkprojct.clock
+
 import android.app.*
 import android.content.Intent
 import android.os.IBinder
