@@ -11,6 +11,8 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.gkprojct.clock.ui.theme.ClockTheme
@@ -19,6 +21,17 @@ import com.gkprojct.clock.vm.AlarmViewModelFactory
 import com.gkprojct.clock.vm.AppDatabase
 import java.time.DayOfWeek
 import java.util.UUID
+
+class MainActivity : ComponentActivity() {
+    override fun onCreate(savedInstanceState: android.os.Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContent {
+            ClockTheme {
+                AppContent()
+            }
+        }
+    }
+}
 
 enum class SettingsScreenType {
     Main, CalendarSelection, RuleManagement, AddEditRule, RuleCalendarSelection, RuleAlarmSelection, RuleCriteriaDefinition, ShiftWorkHolidayCalendarSelection
@@ -97,8 +110,7 @@ fun AppContent() {
                         onSelectCalendarClick = { currentSettingsScreen = SettingsScreenType.CalendarSelection },
                         onManageRulesClick = { currentSettingsScreen = SettingsScreenType.RuleManagement },
                         onCalendarsSelectionDone = saveSelectedCalendarIds,
-                        initialSelectedCalendarIds = initiallySelectedCalendarIds,
-                        onSelectHolidayCalendarsClick = {}
+                        initialSelectedCalendarIds = initiallySelectedCalendarIds
                     )
                     SettingsScreenType.CalendarSelection, SettingsScreenType.RuleCalendarSelection, SettingsScreenType.ShiftWorkHolidayCalendarSelection -> CalendarSelectionScreen(
                         onBackClick = {

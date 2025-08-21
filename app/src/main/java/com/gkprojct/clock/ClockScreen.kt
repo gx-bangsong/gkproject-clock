@@ -34,6 +34,7 @@ import androidx.compose.ui.unit.sp
 
 
 // --- Clock Screen Composable ---
+// Recompile flag
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ClockScreen(onSettingsClick: () -> Unit) {
