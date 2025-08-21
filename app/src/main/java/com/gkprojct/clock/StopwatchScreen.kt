@@ -258,7 +258,7 @@ fun StopwatchControls(
             // Shape: Rounded Rect when running/paused, Circle when idle
             shape = if (isIdle) CircleShape else RoundedCornerShape(24.dp),
             // Size: Larger Circle when idle, Rectangular when running/paused
-            modifier = if (isIdle) Modifier.size(88.dp) else Modifier.height(72.dp).width(140.dp),
+            modifier = if (isIdle) Modifier.size(88.dp) else Modifier.size(width = 140.dp, height = 72.dp),
             contentPadding = PaddingValues(0.dp),
             colors = ButtonDefaults.buttonColors(
                 // Color: Primary when idle (Start), SurfaceVariant when running (Pause)
