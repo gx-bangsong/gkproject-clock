@@ -207,7 +207,7 @@ fun AppContent() {
             } else {
                 when (currentScreenIndex) {
                     0 -> AlarmScreen(onSettingsClick = { showSettingsScreen = true }, ruleViewModel = ruleViewModel)
-                    1 -> ClockScreen(onSettingsClick = { showSettingsScreen = true })
+                    1 -> ClockScreen { showSettingsScreen = true }
                     2 -> TimerScreen(timerViewModel = viewModel())
                     3 -> StopwatchScreen(stopwatchViewModel = viewModel())
                     4 -> BedtimeScreen()
