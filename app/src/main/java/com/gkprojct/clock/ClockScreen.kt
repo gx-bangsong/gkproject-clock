@@ -37,7 +37,7 @@ import androidx.compose.ui.unit.sp
 // Recompile flag
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ClockScreen() {
+fun ClockScreen(onSettingsClick: () -> Unit) {
     // TODO: Implement logic to display current real-time and date
     // For now, using placeholder values
     val currentTime = "3:41"
@@ -47,7 +47,10 @@ fun ClockScreen() {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Clock") }
+                title = { Text("Clock") },
+                actions = {
+                    MoreOptionsSettingsAction(onSettingsClick = onSettingsClick )
+                }
             )
         },
         floatingActionButton = {
@@ -108,7 +111,7 @@ fun ClockScreen() {
 fun ClockScreenPreviewDark() {
     // Wrap preview in a theme (e.g., ClockTheme)
     MaterialTheme {
-        ClockScreen { var showSettingsScreen = true } // Preview the screen composable
+        ClockScreen(onSettingsClick = {}) // Preview the screen composable
     }
 }
 
@@ -117,6 +120,6 @@ fun ClockScreenPreviewDark() {
 fun ClockScreenPreviewLight() {
     // Wrap preview in a theme (e.g., ClockTheme)
     MaterialTheme {
-        ClockScreen { var showSettingsScreen = true } // Preview the screen composable
+        ClockScreen(onSettingsClick = {}) // Preview the screen composable
     }
 }
