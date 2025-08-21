@@ -27,6 +27,11 @@ data class Rule(
 )
 
 // 规则判断条件的密封类
+enum class HolidayHandlingStrategy {
+    NORMAL_SCHEDULE, // 假日后依然按照排班规则正常排班
+    POSTPONE_SCHEDULE // 假日后按照继续假日前一天的排班
+}
+
 sealed class RuleCriteria {
     object AlwaysTrue : RuleCriteria()
     data class IfCalendarEventExists(
@@ -35,11 +40,6 @@ sealed class RuleCriteria {
         val allDay: Boolean = false // false for specific time, true for all-day event
     ) : RuleCriteria()
     data class BasedOnTime(val startTime: LocalTime, val endTime: LocalTime) : RuleCriteria()
-enum class HolidayHandlingStrategy {
-    NORMAL_SCHEDULE, // 假日后依然按照排班规则正常排班
-    POSTPONE_SCHEDULE // 假日后按照继续假日前一天的排班
-}
-
     data class ShiftWork(
         val cycleDays: Int, // e.g., 4 days
         val shiftsPerCycle: Int, // e.g., 2 shifts

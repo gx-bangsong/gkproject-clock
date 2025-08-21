@@ -12,7 +12,7 @@ import com.gkprojct.clock.shortDayNamesOrder // Import shortDayNamesOrder if nee
 // REMOVE any duplicate definitions or placeholders if they exist in this file
 import android.annotation.SuppressLint
 import android.content.res.Configuration
-import android.graphics.Color
+import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -412,9 +412,9 @@ fun AlarmItem(
                 ) {
                     // Use a standard loop or Composable loop like FlowRow if needed
                     // Qualify shortDayNamesOrder if ambiguous
-                    for (dayOfWeek in com.gkprojct.clock.util.shortDayNamesOrder) { // Example qualification
+                    for (dayOfWeek in shortDayNamesOrder) { // Example qualification
                         DayButton(
-                            day = dayOfWeek,
+                            text = dayOfWeekToShortName[dayOfWeek]!!,
                             isSelected = alarm.repeatingDays.contains(dayOfWeek),
                             onClick = {
                                 val newDays = alarm.repeatingDays.toMutableSet()
@@ -434,9 +434,11 @@ fun AlarmItem(
                 // Other Options (Assuming AlarmOptionItem exists)
                 // Use the correct AlarmOptionItem definition (assuming one from preview or shared components)
                 // Example using the one with 'checked'
-                val alarmOptionItem = com.gkprojct.clock.ui.components.AlarmOptionItem(icon = Icons.Default.Label, text = alarm.label ?: "Add Label", onClick = { /* TODO: Show Label Dialog */ onLabelChange(alarm.label ?: "") })
-                val alarmOptionItem1 = com.gkprojct.clock.ui.components.AlarmOptionItem(icon = Icons.Default.MusicNote, text = alarm.sound, onClick = { onSoundChange(alarm.sound) /* TODO: Show Sound Picker */ })
-                com.gkprojct.clock.ui.components.AlarmOptionItem(icon = Icons.Default.Vibration, text = "Vibrate", checked = alarm.vibrate, onClick = { onVibrateChange(!alarm.vibrate) })
+                AlarmOptionItem(icon = Icons.Default.Label, text = alarm.label ?: "Add Label", onClick = { /* TODO: Show Label Dialog */ onLabelChange(alarm.label ?: "") })
+                AlarmOptionItem(icon = Icons.Default.MusicNote, text = alarm.sound, onClick = { onSoundChange(alarm.sound) /* TODO: Show Sound Picker */ })
+                AlarmOptionItem(icon = Icons.Default.Vibration, text = "Vibrate") {
+                    Switch(checked = alarm.vibrate, onCheckedChange = { onVibrateChange(!alarm.vibrate) })
+                }
 
                 // --- Rules Section --- (Clickable to open dialog)
                 AlarmOptionItem(
@@ -595,8 +597,8 @@ fun AlarmScreenPreview() {
     val sampleRuleDao = object : com.gkprojct.clock.vm.RuleDao {
         private val sampleRulesFlow = MutableStateFlow(listOf(
             // Ensure RuleCriteria is imported or qualified
-            com.gkprojct.clock.vm.RuleEntity(UUID.randomUUID(), "Holiday Pause", "Pause on holidays", true, emptySet(), setOf(1L), com.gkprojct.clock.RuleCriteria.IfCalendarEventExists(listOf("holiday"), 60)), // Use correct RuleCriteria path
-            com.gkprojct.clock.vm.RuleEntity(UUID.randomUUID(), "No Class Pause", "Pause if no class", false, emptySet(), setOf(2L), com.gkprojct.clock.RuleCriteria.BasedOnTime(LocalTime.of(9,0), LocalTime.of(17,0))) // Use correct RuleCriteria path
+            com.gkprojct.clock.vm.RuleEntity(UUID.randomUUID(), "Holiday Pause", "Pause on holidays", true, emptySet(), setOf(1L), com.gkprojct.clock.RuleCriteria.IfCalendarEventExists(listOf("holiday"), 60), RuleAction.SkipNextAlarm), // Use correct RuleCriteria path
+            com.gkprojct.clock.vm.RuleEntity(UUID.randomUUID(), "No Class Pause", "Pause if no class", false, emptySet(), setOf(2L), com.gkprojct.clock.RuleCriteria.BasedOnTime(LocalTime.of(9,0), LocalTime.of(17,0)), RuleAction.SkipNextAlarm) // Use correct RuleCriteria path
         ))
         override fun getAllRules(): Flow<List<com.gkprojct.clock.vm.RuleEntity>> = sampleRulesFlow
         override suspend fun getRuleById(ruleId: UUID): com.gkprojct.clock.vm.RuleEntity? = sampleRulesFlow.value.find { it.id == ruleId }

@@ -126,6 +126,7 @@ fun StopwatchScreen(stopwatchViewModel: StopwatchViewModel = viewModel()) {
             onResetClick = { stopwatchViewModel.resetStopwatch() }
         )
     }
+    }
 }
 
 @Composable
@@ -294,5 +295,4 @@ fun StopwatchScreenPreviewDark() {
     MaterialTheme {
         StopwatchScreen()
     }
-}
 }

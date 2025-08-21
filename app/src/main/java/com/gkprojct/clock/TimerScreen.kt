@@ -72,12 +72,12 @@ fun TimerScreen(timerViewModel: TimerViewModel = viewModel()) {
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues) // Apply padding from Scaffold
-                .padding(horizontal = 16.dp), // Keep horizontal padding
-            horizontalAlignment = Alignment.CenterHorizontally,
+                .padding(horizontal = 16.dp) // Keep horizontal padding
+                .padding(top = 8.dp), // Adjust padding as needed
+            horizontalAlignment = Alignment.CenterHorizontally
             // Remove SpaceBetween, arrangement will be handled by Crossfade content
             // verticalArrangement = Arrangement.SpaceBetween 
             // Add top padding to account for the TopAppBar
-            modifier = Modifier.padding(top = 8.dp) // Adjust padding as needed
         ) {
             // Crossfade between Input UI and Running/Paused UI
             Crossfade(targetState = timerState == TimerState.STOPPED, label = "TimerStateCrossfade") {
