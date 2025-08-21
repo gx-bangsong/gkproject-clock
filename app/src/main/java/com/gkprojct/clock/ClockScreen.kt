@@ -108,7 +108,7 @@ fun ClockScreen() {
 fun ClockScreenPreviewDark() {
     // Wrap preview in a theme (e.g., ClockTheme)
     MaterialTheme {
-        ClockScreen { var showSettingsScreen = true } // Preview the screen composable
+        ClockScreen() // Preview the screen composable
     }
 }
 
@@ -117,6 +117,6 @@ fun ClockScreenPreviewDark() {
 fun ClockScreenPreviewLight() {
     // Wrap preview in a theme (e.g., ClockTheme)
     MaterialTheme {
-        ClockScreen { var showSettingsScreen = true } // Preview the screen composable
+        ClockScreen() // Preview the screen composable
     }
 }
