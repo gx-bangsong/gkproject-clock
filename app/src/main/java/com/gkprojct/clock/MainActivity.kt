@@ -11,6 +11,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.ui.tooling.preview.Preview
@@ -39,6 +40,14 @@ enum class SettingsScreenType {
 
 @Composable
 fun AppContent() {
+    if (LocalInspectionMode.current) {
+        // Show a placeholder in Preview mode
+        Box(modifier = Modifier.fillMaxSize()) {
+            Text("Preview of AppContent is not available due to complex logic.")
+        }
+        return
+    }
+
     val context = LocalContext.current
     val database = remember { AppDatabase.getDatabase(context) }
     val ruleDao = remember { database.ruleDao() }
@@ -214,5 +223,14 @@ fun AppContent() {
                 }
             }
         }
+    }
+}
+
+@RequiresApi(Build.VERSION_CODES.R)
+@Preview(showBackground = true)
+@Composable
+fun AppPreview() {
+    ClockTheme {
+        AppContent()
     }
 }
