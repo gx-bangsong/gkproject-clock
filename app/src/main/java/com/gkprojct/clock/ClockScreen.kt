@@ -37,7 +37,7 @@ import androidx.compose.ui.unit.sp
 // Recompile flag
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ClockScreen(onSettingsClick: () -> Unit = {}) {
+fun ClockScreen(onSettingsClick: () -> Unit) {
     // TODO: Implement logic to display current real-time and date
     // For now, using placeholder values
     val currentTime = "3:41"

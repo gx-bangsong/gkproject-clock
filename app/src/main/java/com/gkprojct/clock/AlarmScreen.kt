@@ -133,9 +133,9 @@ data class Alarm(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AlarmScreen(
-    onSettingsClick: () -> Unit = {},
+    onSettingsClick: () -> Unit,
     ruleViewModel: RuleViewModel // Assuming RuleViewModel is needed for rules
-) {
+) { // <-- Added ruleViewModel parameter
     // Sample alarm data (replace with your actual data source/ViewModel)
     val alarms = remember {
         mutableStateListOf(
