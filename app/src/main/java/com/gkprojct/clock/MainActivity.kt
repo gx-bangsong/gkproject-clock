@@ -210,7 +210,7 @@ fun AppContent() {
                     1 -> ClockScreen { showSettingsScreen = true }
                     2 -> TimerScreen(timerViewModel = viewModel())
                     3 -> StopwatchScreen(stopwatchViewModel = viewModel())
-                    4 -> BedtimeScreen()
+                    4 -> BedtimeScreen { showSettingsScreen = true }
                 }
             }
         }
