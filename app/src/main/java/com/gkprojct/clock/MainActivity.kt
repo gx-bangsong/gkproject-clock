@@ -216,3 +216,12 @@ fun AppContent() {
         }
     }
 }
+
+@RequiresApi(Build.VERSION_CODES.R)
+@Preview(showBackground = true)
+@Composable
+fun AppPreview() {
+    ClockTheme {
+        AppContent()
+    }
+}
