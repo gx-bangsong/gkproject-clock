@@ -20,42 +20,47 @@ class RuleConverters {
 
     @TypeConverter
     fun fromRuleCriteria(criteria: RuleCriteria): String {
+        val jsonElement = gson.toJsonTree(criteria)
+        if (jsonElement.isJsonObject) {
+            val jsonObject = jsonElement.asJsonObject
+            jsonObject.addProperty("type", criteria::class.java.simpleName)
+            return gson.toJson(jsonObject)
+        }
         return gson.toJson(criteria)
     }
 
     @TypeConverter
     fun toRuleCriteria(criteriaJson: String): RuleCriteria {
-        // This is a simplified deserialization. For complex sealed classes,
-        // a custom JsonDeserializer might be needed to correctly identify
-        // the specific subclass (AlwaysTrue, IfCalendarEventExists, etc.).
-        // For now, we attempt to deserialize into known types.
-        return try {
-            gson.fromJson(criteriaJson, RuleCriteria.AlwaysTrue::class.java) as? RuleCriteria.AlwaysTrue
-                ?: gson.fromJson(criteriaJson, RuleCriteria.IfCalendarEventExists::class.java) as? RuleCriteria.IfCalendarEventExists
-                ?: gson.fromJson(criteriaJson, RuleCriteria.BasedOnTime::class.java) as? RuleCriteria.BasedOnTime
-                ?: gson.fromJson(criteriaJson, RuleCriteria.ShiftWork::class.java) as? RuleCriteria.ShiftWork
-                // TODO: Add deserialization for other criteria types here
-                ?: RuleCriteria.AlwaysTrue // Default if deserialization fails
-        } catch (e: Exception) {
-            e.printStackTrace()
-            RuleCriteria.AlwaysTrue // Return default on error
+        val jsonObject = gson.fromJson(criteriaJson, com.google.gson.JsonObject::class.java)
+        val type = jsonObject.get("type")?.asString
+        return when (type) {
+            "AlwaysTrue" -> RuleCriteria.AlwaysTrue
+            "IfCalendarEventExists" -> gson.fromJson(criteriaJson, RuleCriteria.IfCalendarEventExists::class.java)
+            "BasedOnTime" -> gson.fromJson(criteriaJson, RuleCriteria.BasedOnTime::class.java)
+            "ShiftWork" -> gson.fromJson(criteriaJson, RuleCriteria.ShiftWork::class.java)
+            else -> RuleCriteria.AlwaysTrue // Default or error
         }
     }
 
     @TypeConverter
     fun fromRuleAction(action: RuleAction): String {
+        val jsonElement = gson.toJsonTree(action)
+        if (jsonElement.isJsonObject) {
+            val jsonObject = jsonElement.asJsonObject
+            jsonObject.addProperty("type", action::class.java.simpleName)
+            return gson.toJson(jsonObject)
+        }
         return gson.toJson(action)
     }
 
     @TypeConverter
     fun toRuleAction(actionJson: String): RuleAction {
-        return try {
-            gson.fromJson(actionJson, RuleAction.SkipNextAlarm::class.java) as? RuleAction.SkipNextAlarm
-                ?: gson.fromJson(actionJson, RuleAction.AdjustAlarmTime::class.java) as? RuleAction.AdjustAlarmTime
-                ?: RuleAction.SkipNextAlarm // Default if deserialization fails
-        } catch (e: Exception) {
-            e.printStackTrace()
-            RuleAction.SkipNextAlarm // Return default on error
+        val jsonObject = gson.fromJson(actionJson, com.google.gson.JsonObject::class.java)
+        val type = jsonObject.get("type")?.asString
+        return when (type) {
+            "SkipNextAlarm" -> RuleAction.SkipNextAlarm
+            "AdjustAlarmTime" -> gson.fromJson(actionJson, RuleAction.AdjustAlarmTime::class.java)
+            else -> RuleAction.SkipNextAlarm // Default or error
         }
     }
 
