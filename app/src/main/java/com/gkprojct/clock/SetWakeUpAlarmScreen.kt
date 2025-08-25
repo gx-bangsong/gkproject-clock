@@ -7,7 +7,16 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
-import androidx.compose.material3.*
+import androidx.compose.material3.Button
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Switch
+import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -172,7 +181,7 @@ fun SetWakeUpAlarmScreen(
                 // Make row clickable to toggle the switch
                 onClick = { isSunriseAlarmEnabled = !isSunriseAlarmEnabled }
             )
-            Divider() // Separator
+            HorizontalDivider() // Separator
 
             // Sound
             AlarmOptionItem(
@@ -182,7 +191,7 @@ fun SetWakeUpAlarmScreen(
                 hasMoreAction = true, // Shows arrow for navigation
                 onClick = { /* TODO: Navigate to sound selection */ }
             )
-            Divider() // Separator
+            HorizontalDivider() // Separator
 
             // Vibrate
             AlarmOptionItem(
@@ -197,7 +206,7 @@ fun SetWakeUpAlarmScreen(
                 // Make row clickable to toggle the checkbox
                 onClick = { isVibrateEnabled = !isVibrateEnabled }
             )
-            Divider() // Separator
+            HorizontalDivider() // Separator
 
             // Google Assistant Routine
             AlarmOptionItem(
