@@ -86,8 +86,6 @@ dependencies {
     // 使用已定义的 junit 版本
     testImplementation(libs.junit)
     testImplementation(libs.mockito.core)
-    testImplementation(libs.mockito.inline)
-    testImplementation(libs.mockito.android)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(platform(libs.androidx.compose.bom))
