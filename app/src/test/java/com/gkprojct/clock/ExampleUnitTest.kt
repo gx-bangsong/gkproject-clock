@@ -1,15 +1,29 @@
-// 新增计时器预设测试
-@Test
-fun testTimerPresets() {
-    val viewModel = TimerViewModel()
-    assertEquals("泡面", viewModel.presets[0].name)
-    assertEquals(180_000, viewModel.presets[0].duration)
-}
+package com.gkprojct.clock
 
-// 新增时间格式化测试
-@Test
-fun testTimeFormatting() {
-    val viewModel = TimerViewModel()
-    val formatted = viewModel.formatTime(3661000)
-    assertEquals("01:01:01", formatted)
+import com.gkprojct.clock.vm.TimerViewModel
+import org.junit.Test
+
+import org.junit.Assert.*
+
+/**
+ * Example local unit test, which will execute on the development machine (host).
+ *
+ * See [testing documentation](http://d.android.com/tools/testing).
+ */
+class ExampleUnitTest {
+    // 新增计时器预设测试
+    @Test
+    fun testTimerPresets() {
+        val viewModel = TimerViewModel()
+        assertEquals("泡面", viewModel.presets[0].name)
+        assertEquals(180_000, viewModel.presets[0].duration)
+    }
+
+    // 新增时间格式化测试
+    @Test
+    fun testTimeFormatting() {
+        val viewModel = TimerViewModel()
+        val formatted = viewModel.formatTime(3661000)
+        assertEquals("01:01:01", formatted)
+    }
 }
