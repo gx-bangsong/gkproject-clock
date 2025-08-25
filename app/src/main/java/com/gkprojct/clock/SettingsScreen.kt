@@ -59,7 +59,7 @@ fun SettingsScreen(
                 style = MaterialTheme.typography.titleMedium,
                 modifier = Modifier.padding(vertical = 8.dp) // <-- padding should now be recognized
             )
-            Divider() // <-- Divider should be recognized (from material3)
+            HorizontalDivider()
 
             // Option to select calendars to read
             AlarmOptionItem( // <-- AlarmOptionItem should be recognized (from your shared file)
@@ -69,7 +69,7 @@ fun SettingsScreen(
                 hasMoreAction = true,
                 onClick = onSelectCalendarClick
             )
-            Divider()
+            HorizontalDivider()
 
             // Option to manage defined rules
             AlarmOptionItem( // <-- AlarmOptionItem should be recognized
@@ -79,7 +79,7 @@ fun SettingsScreen(
                 hasMoreAction = true,
                 onClick = onManageRulesClick
             )
-            Divider()
+            HorizontalDivider()
 
             // TODO: Add other settings options here
         }
