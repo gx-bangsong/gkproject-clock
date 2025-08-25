@@ -11,6 +11,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.ui.tooling.preview.Preview
@@ -39,6 +40,12 @@ enum class SettingsScreenType {
 
 @Composable
 fun AppContent() {
+    if (LocalInspectionMode.current) {
+        Box(modifier = Modifier.fillMaxSize()) {
+            Text("Preview of AppContent is not available due to complex logic.")
+        }
+        return
+    }
     val context = LocalContext.current
     val database = remember { AppDatabase.getDatabase(context) }
     val ruleDao = remember { database.ruleDao() }
@@ -206,7 +213,7 @@ fun AppContent() {
                 Box(modifier = Modifier.fillMaxSize()) { Text("Bedtime setup is not complete (Screens Missing)") }
             } else {
                 when (currentScreenIndex) {
-                    // 0 -> AlarmScreen(onSettingsClick = { showSettingsScreen = true }, ruleViewModel = ruleViewModel)
+                    0 -> AlarmScreen(onSettingsClick = { showSettingsScreen = true }, ruleViewModel = ruleViewModel)
                     1 -> ClockScreen { showSettingsScreen = true }
                     2 -> TimerScreen(timerViewModel = viewModel())
                     3 -> StopwatchScreen(stopwatchViewModel = viewModel())
