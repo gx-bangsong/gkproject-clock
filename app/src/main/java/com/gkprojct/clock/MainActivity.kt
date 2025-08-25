@@ -41,13 +41,11 @@ enum class SettingsScreenType {
 @Composable
 fun AppContent() {
     if (LocalInspectionMode.current) {
-        // Show a placeholder in Preview mode
         Box(modifier = Modifier.fillMaxSize()) {
             Text("Preview of AppContent is not available due to complex logic.")
         }
         return
     }
-
     val context = LocalContext.current
     val database = remember { AppDatabase.getDatabase(context) }
     val ruleDao = remember { database.ruleDao() }
