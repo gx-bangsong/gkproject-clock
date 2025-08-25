@@ -206,7 +206,7 @@ fun AppContent() {
                 Box(modifier = Modifier.fillMaxSize()) { Text("Bedtime setup is not complete (Screens Missing)") }
             } else {
                 when (currentScreenIndex) {
-                    0 -> { AlarmScreen(onSettingsClick = { showSettingsScreen = true }, ruleViewModel = ruleViewModel) }
+                    0 -> AlarmScreen(onSettingsClick = { showSettingsScreen = true }, ruleViewModel = ruleViewModel)
                     1 -> ClockScreen { showSettingsScreen = true }
                     2 -> TimerScreen(timerViewModel = viewModel())
                     3 -> StopwatchScreen(stopwatchViewModel = viewModel())
