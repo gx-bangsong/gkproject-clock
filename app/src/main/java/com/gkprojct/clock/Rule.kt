@@ -48,7 +48,6 @@ sealed class RuleCriteria {
         val holidayCalendarIds: Set<Long> = emptySet(),
         val holidayHandling: HolidayHandlingStrategy = HolidayHandlingStrategy.NORMAL_SCHEDULE
     ) : RuleCriteria()
-    // TODO: Add other specific criteria types
 }
 
 // --- 辅助函数：将 RuleCriteria 转换为摘要字符串 ---
@@ -57,14 +56,16 @@ fun RuleCriteria.toSummaryString(): String {
     return when (this) {
         is RuleCriteria.AlwaysTrue -> "始终启用"
         is RuleCriteria.IfCalendarEventExists -> {
-            val keywordsSummary = if (keywords.isNotEmpty()) "包含关键词: ${keywords.joinToString(", ")}" else "无关键词"
-            val timeRangeSummary = if (timeRangeMinutes > 0) "，时间范围: ${timeRangeMinutes} 分钟" else ""
-            "基于日历事件 ($keywordsSummary$timeRangeSummary)"
+            val eventType = if (allDay) "全天事件" else "定时事件"
+            val keywordsSummary = if (keywords.isNotEmpty()) "关键词: ${keywords.joinToString()}" else "任何事件"
+            "日历事件: $eventType, $keywordsSummary"
         }
         is RuleCriteria.BasedOnTime -> {
-            "基于时间 (${startTime} - ${endTime})"
+            val formatter = DateTimeFormatter.ofLocalizedTime(java.time.format.FormatStyle.SHORT)
+            "时间范围: ${startTime.format(formatter)} - ${endTime.format(formatter)}"
         }
-        // TODO: Add summary for other criteria types
-        else -> "未知条件"
+        is RuleCriteria.ShiftWork -> {
+            "轮班制: ${cycleDays}天 / ${shiftsPerCycle}班"
+        }
     }
 }
