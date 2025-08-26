@@ -11,7 +11,8 @@ activityCompose = "1.10.1"
 composeBom = "2024.09.00"
 navigationCompose = "2.7.7"
 room = "2.6.1" # **请使用你项目中实际的 Room 版本号**
-mockito = "5.19.0" # Define the version for Mockito Core
+mockito = "5.19.0"
+
 ksp = "2.0.21-1.0.28"
 mockito-kotlin = "6.0.0"
 
