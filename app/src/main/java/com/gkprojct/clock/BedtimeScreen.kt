@@ -24,31 +24,64 @@ import java.time.temporal.ChronoUnit // For calculating duration
 // Adjust import if you named your shared file differently
 
 
+// Data class to hold bedtime settings
+data class BedtimeSettings(
+    val bedtime: LocalTime,
+    val wakeUpTime: LocalTime,
+    val activeDays: Set<DayOfWeek>
+)
+
+// Function to calculate sleep duration accurately
+private fun calculateDurationText(start: LocalTime, end: LocalTime): String {
+    val totalMinutes = if (end.isAfter(start)) {
+        ChronoUnit.MINUTES.between(start, end)
+    } else {
+        ChronoUnit.MINUTES.between(start, LocalTime.MAX) + 1 + ChronoUnit.MINUTES.between(LocalTime.MIN, end)
+    }
+    val hours = totalMinutes / 60
+    val minutes = totalMinutes % 60
+    return when {
+        minutes == 0L -> "$hours hours"
+        hours == 0L -> "$minutes minutes"
+        else -> "$hours hours $minutes minutes"
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun BedtimeScreen(onSettingsClick: () -> Unit) { // Main Bedtime screen after setup
 
     // Note: Bottom navigation state and composable are now in MainActivity/AppContent
 
-    // TODO: Fetch actual bedtime and wake-up time from saved settings
-    // For now, using placeholder values
-    val bedtime = LocalTime.of(23, 0) // Example 11:00 PM
-    val wakeUpTime = LocalTime.of(7, 0) // Example 7:00 AM
-
-    // TODO: Calculate duration accurately
-    val durationHours = ChronoUnit.HOURS.between(bedtime, wakeUpTime).let {
-        if (it < 0) it + 24 else it
+    // State representing fetched settings. Using remember as a placeholder for a ViewModel.
+    val settings by remember {
+        mutableStateOf(
+            BedtimeSettings(
+                bedtime = LocalTime.of(23, 0),
+                wakeUpTime = LocalTime.of(7, 0),
+                activeDays = setOf(DayOfWeek.SUNDAY, DayOfWeek.MONDAY, DayOfWeek.TUESDAY, DayOfWeek.WEDNESDAY, DayOfWeek.THURSDAY)
+            )
+        )
     }
-    val durationMinutes = ChronoUnit.MINUTES.between(bedtime.plusHours(durationHours.toLong()), wakeUpTime).let {
-        if (it < 0) it + 60
-        else it
+
+    val durationText = calculateDurationText(settings.bedtime, settings.wakeUpTime)
+
+    // A simple logic to find the next alarm day.
+    val nextAlarmDay = remember(settings.activeDays) {
+        if (settings.activeDays.isEmpty()) null
+        else {
+            var today = java.time.LocalDate.now().dayOfWeek
+            var checkCount = 0
+            while (checkCount < 8) {
+                if (today in settings.activeDays) return@remember today
+                today = today.plus(1)
+                checkCount++
+            }
+            null // No active days found
+        }
     }
-    val durationText = if (durationMinutes == 0L) "$durationHours hours" else "$durationHours hours $durationMinutes minutes"
 
-
-    // TODO: Fetch next alarm day based on setup settings
-    val nextAlarmDay = DayOfWeek.SUNDAY // Example
-
+    var showBedtimeActivityCard by remember { mutableStateOf(true) }
 
     Scaffold(
         topBar = {
@@ -73,33 +106,35 @@ fun BedtimeScreen(onSettingsClick: () -> Unit) { // Main Bedtime screen after se
             item {
                 // --- Schedule Card ---
                 ScheduleCard(
-                    bedtime = bedtime, // Use placeholder/fetched data
-                    wakeUpTime = wakeUpTime, // Use placeholder/fetched data
-                    durationText = durationText, // Use calculated duration text
-                    nextAlarmDay = nextAlarmDay, // Use placeholder/fetched data
-                    onClick = { /* TODO: Handle Schedule card click (likely navigate to edit schedule) */ }
+                    bedtime = settings.bedtime,
+                    wakeUpTime = settings.wakeUpTime,
+                    durationText = durationText,
+                    nextAlarmDay = nextAlarmDay,
+                    onClick = { println("Navigate to edit schedule screen") }
                 )
             }
 
-            item {
-                // --- Recent Bedtime Activity Card ---
-                BedtimeActivityCard(
-                    onNoThanksClick = { /* TODO */ },
-                    onResumeClick = { /* TODO */ } // Changed from Continue
-                )
+            if (showBedtimeActivityCard) {
+                item {
+                    // --- Recent Bedtime Activity Card ---
+                    BedtimeActivityCard(
+                        onNoThanksClick = { showBedtimeActivityCard = false },
+                        onResumeClick = { println("Navigate to bedtime activity screen") }
+                    )
+                }
             }
 
             item {
                 // --- Listen to Sleep Sounds Card ---
                 SleepSoundsCard(
-                    onChooseSoundClick = { /* TODO: Navigate to sound picker */ }
+                    onChooseSoundClick = { println("Navigate to sound picker screen") }
                 )
             }
 
             item {
                 // --- See your upcoming events Card ---
                 UpcomingEventsCard(
-                    onClick = { /* TODO: Navigate to events */ }
+                    onClick = { println("Navigate to events screen") }
                 )
             }
 
@@ -116,7 +151,7 @@ fun ScheduleCard(
     bedtime: LocalTime,
     wakeUpTime: LocalTime,
     durationText: String, // Accept formatted duration text
-    nextAlarmDay: DayOfWeek,
+    nextAlarmDay: DayOfWeek?,
     onClick: () -> Unit
 ) {
     Surface(
@@ -200,12 +235,14 @@ fun ScheduleCard(
                     fontSize = 14.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                Text(" • ", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 14.sp) // Match font size
-                Text(
-                    text = "Next alarm on ${nextAlarmDay.getDisplayName(java.time.format.TextStyle.FULL, Locale.getDefault())}", // Get full localized name
-                    fontSize = 14.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                if (nextAlarmDay != null) {
+                    Text(" • ", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 14.sp) // Match font size
+                    Text(
+                        text = "Next alarm on ${nextAlarmDay.getDisplayName(java.time.format.TextStyle.FULL, Locale.getDefault())}", // Get full localized name
+                        fontSize = 14.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
         }
     }

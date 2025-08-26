@@ -29,57 +29,45 @@ class AlarmReceiver : BroadcastReceiver() {
                 val db = AppDatabase.getDatabase(context.applicationContext)
                 val ruleDao = db.ruleDao()
                 val alarmDao = db.alarmDao()
-                val ruleEngine = RuleEngine(context.contentResolver)
-                val rules = ruleDao.getAllRules().first()
-
-                var shouldSkip = false
-                var adjustedTime: LocalTime? = null
+                val ruleEngine = RuleEngine(context.contentResolver) // Pass ContentResolver
 
                 val alarmIdStr = intent.getStringExtra("ALARM_ID")
                 if (alarmIdStr == null) {
                     withContext(Dispatchers.Main) { showNotification(context) }
                     return@launch
                 }
-
                 val alarmId = UUID.fromString(alarmIdStr)
                 val originalAlarmEntity = alarmDao.getAlarmById(alarmId)
+                if (originalAlarmEntity == null) {
+                     withContext(Dispatchers.Main) { showNotification(context) }
+                    return@launch
+                }
 
-                if (originalAlarmEntity != null) {
-                    for (ruleEntity in rules) {
-                        if (!ruleEntity.enabled || !ruleEntity.targetAlarmIds.contains(alarmId)) continue
+                // Fetch rules relevant to this alarm
+                val allRules = ruleDao.getAllRules().first()
+                val relevantRules = allRules.filter { it.targetAlarmIds.contains(alarmId) }.map {
+                    Rule(
+                        id = it.id, name = it.name, description = it.description, enabled = it.enabled,
+                        targetAlarmIds = it.targetAlarmIds, calendarIds = it.calendarIds,
+                        criteria = it.criteria, action = it.action
+                    )
+                }
 
-                        val rule = Rule(
-                            id = ruleEntity.id,
-                            name = ruleEntity.name,
-                            description = ruleEntity.description,
-                            enabled = ruleEntity.enabled,
-                            targetAlarmIds = ruleEntity.targetAlarmIds,
-                            calendarIds = ruleEntity.calendarIds,
-                            criteria = ruleEntity.criteria,
-                            action = ruleEntity.action
-                        )
+                // Evaluate rules
+                val resultAction = ruleEngine.evaluateRules(relevantRules, java.time.LocalDateTime.now())
 
-                        if (ruleEngine.evaluate(rule, Instant.now())) {
-                            when (val action = rule.action) {
-                                is RuleAction.SkipNextAlarm -> {
-                                    shouldSkip = true
-                                    break
-                                }
-                                is RuleAction.AdjustAlarmTime -> {
-                                    adjustedTime = action.newTime
-                                }
-                            }
-                        }
-                    }
-
-                    if (shouldSkip) {
+                when (resultAction) {
+                    is RuleAction.SkipNextAlarm -> {
                         Log.d("AlarmReceiver", "Alarm ${originalAlarmEntity.label} skipped by a rule.")
-                    } else if (adjustedTime != null) {
+                        // Just don't show the notification
+                    }
+                    is RuleAction.AdjustAlarmTime -> {
+                        val adjustedTime = resultAction.newTime
                         Log.d("AlarmReceiver", "Alarm ${originalAlarmEntity.label} adjusted to $adjustedTime by a rule.")
                         val originalCalendar = Calendar.getInstance().apply { timeInMillis = originalAlarmEntity.timeInMillis }
                         val adjustedCalendar = (originalCalendar.clone() as Calendar).apply {
-                            set(Calendar.HOUR_OF_DAY, adjustedTime!!.hour)
-                            set(Calendar.MINUTE, adjustedTime!!.minute)
+                            set(Calendar.HOUR_OF_DAY, adjustedTime.hour)
+                            set(Calendar.MINUTE, adjustedTime.minute)
                             set(Calendar.SECOND, 0)
                             set(Calendar.MILLISECOND, 0)
                         }
@@ -97,13 +85,17 @@ class AlarmReceiver : BroadcastReceiver() {
                         )
                         AlarmScheduler.schedule(context, adjustedAlarm)
                         Log.d("AlarmReceiver", "Scheduled adjusted alarm for ${adjustedAlarm.time.time}")
-                    } else {
+                    }
+                    null -> {
+                        // No rules matched, fire original alarm
                         withContext(Dispatchers.Main) {
                             showNotification(context)
                         }
                     }
+                }
 
-                    if (originalAlarmEntity.repeatingDays.isNotEmpty()) {
+                // Reschedule repeating alarms
+                if (originalAlarmEntity.repeatingDays.isNotEmpty()) {
                         val originalAlarm = Alarm(
                             id = originalAlarmEntity.id,
                             time = Calendar.getInstance().apply { timeInMillis = originalAlarmEntity.timeInMillis },

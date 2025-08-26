@@ -2,33 +2,55 @@ package com.gkprojct.clock
 
 import android.content.ContentResolver
 import android.provider.CalendarContract
-import com.gkprojct.clock.HolidayHandlingStrategy
 import java.time.Instant
 import java.time.LocalDate
+import java.time.LocalDateTime
+
 import java.time.LocalTime
 import java.time.ZoneId
 import java.time.temporal.ChronoUnit
 
+/**
+ * The RuleEngine is responsible for evaluating a set of rules against the current system state
+ * and determining which action, if any, should be taken.
+ * It uses the ContentResolver to query the device's calendar.
+ */
 class RuleEngine(private val contentResolver: ContentResolver) {
 
-    fun evaluate(rule: Rule, evaluationTime: Instant): Boolean {
-        if (!rule.enabled) {
-            return false
-        }
+    /**
+     * Evaluates a list of rules against the current context.
+     *
+     * @param rules The list of rules to evaluate.
+     * @param currentTime The current time to check against.
+     * @return The `RuleAction` from the first matching, enabled rule, or null if no rules match.
+     */
+    fun evaluateRules(
+        rules: List<Rule>,
+        currentTime: LocalDateTime
+    ): RuleAction? {
+        val evaluationTime = currentTime.atZone(ZoneId.systemDefault()).toInstant()
+        val activeRules = rules.filter { it.enabled }
 
-        return when (val criteria = rule.criteria) {
-            is RuleCriteria.AlwaysTrue -> true
-            is RuleCriteria.BasedOnTime -> {
-                val evaluationLocalTime = evaluationTime.atZone(ZoneId.systemDefault()).toLocalTime()
-                !evaluationLocalTime.isBefore(criteria.startTime) && !evaluationLocalTime.isAfter(criteria.endTime)
+        for (rule in activeRules) {
+            val isMatch = when (val criteria = rule.criteria) {
+                is RuleCriteria.AlwaysTrue -> true
+                is RuleCriteria.BasedOnTime -> {
+                    val evaluationLocalTime = evaluationTime.atZone(ZoneId.systemDefault()).toLocalTime()
+                    !evaluationLocalTime.isBefore(criteria.startTime) && !evaluationLocalTime.isAfter(criteria.endTime)
+                }
+                is RuleCriteria.IfCalendarEventExists -> {
+                    checkCalendarEvents(rule.calendarIds, criteria, evaluationTime)
+                }
+                is RuleCriteria.ShiftWork -> {
+                    checkShiftWork(criteria, evaluationTime)
+                }
             }
-            is RuleCriteria.IfCalendarEventExists -> {
-                checkCalendarEvents(rule.calendarIds, criteria, evaluationTime)
-            }
-            is RuleCriteria.ShiftWork -> {
-                checkShiftWork(criteria, evaluationTime)
+            if (isMatch) {
+                return rule.action
             }
         }
+        return null
+
     }
 
     private fun checkCalendarEvents(calendarIds: Set<Long>, criteria: RuleCriteria.IfCalendarEventExists, evaluationTime: Instant): Boolean {
