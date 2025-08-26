@@ -11,7 +11,6 @@ activityCompose = "1.10.1"
 composeBom = "2024.09.00"
 navigationCompose = "2.7.7"
 room = "2.6.1" # **请使用你项目中实际的 Room 版本号**
-mockito = "5.19.0"
 mockito-kotlin = "6.0.0"
 ksp = "2.0.21-1.0.28"
 
@@ -35,7 +34,6 @@ androidx-compose-runtime = { group = "androidx.compose.runtime", name = "runtime
 androidx-room-runtime = { group = "androidx.room", name = "room-runtime", version.ref = "room" }
 androidx-room-ktx = { group = "androidx.room", name = "room-ktx", version.ref = "room" }
 androidx-room-compiler = { group = "androidx.room", name = "room-compiler", version.ref = "room" }
-mockito-core = { group = "org.mockito", name = "mockito-core", version.ref = "mockito" }
 mockito-kotlin = { group = "org.mockito.kotlin", name = "mockito-kotlin", version.ref = "mockito-kotlin" }
 
 

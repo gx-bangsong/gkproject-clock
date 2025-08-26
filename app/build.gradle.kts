@@ -94,7 +94,6 @@ dependencies {
     implementation("androidx.test:rules:1.6.1")// Use the latest stable version if needed
     // 使用已定义的 junit 版本
     testImplementation(libs.junit)
-    testImplementation(libs.mockito.core)
     testImplementation(libs.mockito.kotlin)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
