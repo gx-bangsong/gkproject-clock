@@ -109,7 +109,6 @@ class AlarmReceiver : BroadcastReceiver() {
                         AlarmScheduler.schedule(context, originalAlarm)
                         Log.d("AlarmReceiver", "Rescheduled repeating alarm: ${originalAlarm.label}")
                     }
-                }
             } finally {
                 pendingResult.finish()
             }
