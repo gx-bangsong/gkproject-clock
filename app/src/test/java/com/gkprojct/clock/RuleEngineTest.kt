@@ -7,6 +7,7 @@ import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.mockito.ArgumentMatchers.anyOrNull
 import org.mockito.Mock
 import org.mockito.Mockito.*
 import org.mockito.junit.MockitoJUnitRunner
@@ -59,7 +60,7 @@ class RuleEngineTest {
         val cursor = MatrixCursor(arrayOf(CalendarContract.Events.DTSTART, CalendarContract.Events.DTEND, CalendarContract.Events.ALL_DAY, CalendarContract.Events.TITLE))
         cursor.addRow(arrayOf(eventStart.toEpochMilli(), eventEnd.toEpochMilli(), 0, "Work Meeting"))
 
-        `when`(mockContentResolver.query(any(), any(), any(), any(), org.mockito.ArgumentMatchers.anyOrNull())).thenReturn(cursor)
+        `when`(mockContentResolver.query(any(), any(), any(), any(), anyOrNull())).thenReturn(cursor)
 
         assertTrue(ruleEngine.evaluate(rule, now))
     }
@@ -71,7 +72,7 @@ class RuleEngineTest {
         val rule = createTestRule(criteria = criteria)
 
         // Mock no holidays
-        `when`(mockContentResolver.query(any(), any(), any(), any(), org.mockito.ArgumentMatchers.anyOrNull())).thenReturn(null)
+        `when`(mockContentResolver.query(any(), any(), any(), any(), anyOrNull())).thenReturn(null)
 
         // Evaluation date is 2 days after start date, which is day 2 of a 4-day cycle.
         // Since shiftsPerCycle is 2, day 0 and 1 are work days. Day 2 is an off day.
@@ -86,7 +87,7 @@ class RuleEngineTest {
         val criteria = RuleCriteria.ShiftWork(cycleDays = 4, shiftsPerCycle = 2, startDate = startDate.toEpochMilli(), currentShiftIndex = 0)
         val rule = createTestRule(criteria = criteria)
 
-        `when`(mockContentResolver.query(any(), any(), any(), any(), org.mockito.ArgumentMatchers.anyOrNull())).thenReturn(null)
+        `when`(mockContentResolver.query(any(), any(), any(), any(), anyOrNull())).thenReturn(null)
 
         val evaluationTime = startDate.plus(3, ChronoUnit.DAYS) // Day 3 is an off day
         assertFalse(ruleEngine.evaluate(rule, evaluationTime))
@@ -103,7 +104,7 @@ class RuleEngineTest {
 
         val cursor = MatrixCursor(arrayOf(CalendarContract.Events.DTSTART))
         cursor.addRow(arrayOf(today.truncatedTo(ChronoUnit.DAYS).toEpochMilli()))
-        `when`(mockContentResolver.query(any(), any(), any(), any(), org.mockito.ArgumentMatchers.anyOrNull())).thenReturn(cursor)
+        `when`(mockContentResolver.query(any(), any(), any(), any(), anyOrNull())).thenReturn(cursor)
 
         assertFalse(ruleEngine.evaluate(rule, today))
     }
