@@ -1,124 +1,153 @@
 package com.gkprojct.clock
 
 import android.content.ContentResolver
-import android.database.MatrixCursor
 import android.provider.CalendarContract
-import org.junit.Assert.*
-import org.junit.Before
-import org.junit.Test
-import org.junit.runner.RunWith
-import org.mockito.ArgumentMatchers.anyOrNull
-import org.mockito.Mock
-import org.mockito.Mockito.*
-import org.mockito.junit.MockitoJUnitRunner
+import com.gkprojct.clock.HolidayHandlingStrategy
 import java.time.Instant
+import java.time.LocalDate
 import java.time.LocalTime
+import java.time.ZoneId
 import java.time.temporal.ChronoUnit
-import java.util.*
 
-@RunWith(MockitoJUnitRunner::class)
-class RuleEngineTest {
+class RuleEngine(private val contentResolver: ContentResolver) {
 
-    @Mock
-    private lateinit var mockContentResolver: ContentResolver
+    fun evaluate(rule: Rule, evaluationTime: Instant): Boolean {
+        if (!rule.enabled) {
+            return false
+        }
 
-    private lateinit var ruleEngine: RuleEngine
-
-    @Before
-    fun setup() {
-        ruleEngine = RuleEngine(mockContentResolver)
+        return when (val criteria = rule.criteria) {
+            is RuleCriteria.AlwaysTrue -> true
+            is RuleCriteria.BasedOnTime -> {
+                val evaluationLocalTime = evaluationTime.atZone(ZoneId.systemDefault()).toLocalTime()
+                !evaluationLocalTime.isBefore(criteria.startTime) && !evaluationLocalTime.isAfter(criteria.endTime)
+            }
+            is RuleCriteria.IfCalendarEventExists -> {
+                checkCalendarEvents(rule.calendarIds, criteria, evaluationTime)
+            }
+            is RuleCriteria.ShiftWork -> {
+                checkShiftWork(criteria, evaluationTime)
+            }
+        }
     }
 
-    @Test
-    fun `evaluate with AlwaysTrue returns true`() {
-        val rule = createTestRule(criteria = RuleCriteria.AlwaysTrue)
-        assertTrue(ruleEngine.evaluate(rule, Instant.now()))
-    }
+    private fun checkCalendarEvents(calendarIds: Set<Long>, criteria: RuleCriteria.IfCalendarEventExists, evaluationTime: Instant): Boolean {
+        if (calendarIds.isEmpty()) {
+            return false
+        }
 
-    @Test
-    fun `evaluate with disabled rule returns false`() {
-        val rule = createTestRule(enabled = false, criteria = RuleCriteria.AlwaysTrue)
-        assertFalse(ruleEngine.evaluate(rule, Instant.now()))
-    }
+        val selection = "${CalendarContract.Events.CALENDAR_ID} IN (${calendarIds.joinToString(",")})"
+        val selectionArgs = arrayOf<String>()
 
-    @Test
-    fun `evaluate with BasedOnTime returns true when within time range`() {
-        val rule = createTestRule(criteria = RuleCriteria.BasedOnTime(LocalTime.of(8, 0), LocalTime.of(17, 0)))
-        val evaluationTime = Instant.parse("2023-10-27T10:00:00Z")
-        assertTrue(ruleEngine.evaluate(rule, evaluationTime))
-    }
-
-    @Test
-    fun `evaluate with IfCalendarEventExists returns true for matching event`() {
-        val criteria = RuleCriteria.IfCalendarEventExists(keywords = listOf("Work"), timeRangeMinutes = 60, allDay = false)
-        val rule = createTestRule(criteria = criteria, calendarIds = setOf(1L))
-
-        val now = Instant.now()
-        val eventStart = now.plus(30, ChronoUnit.MINUTES)
-        val eventEnd = now.plus(90, ChronoUnit.MINUTES)
-
-        val cursor = MatrixCursor(arrayOf(CalendarContract.Events.DTSTART, CalendarContract.Events.DTEND, CalendarContract.Events.ALL_DAY, CalendarContract.Events.TITLE))
-        cursor.addRow(arrayOf(eventStart.toEpochMilli(), eventEnd.toEpochMilli(), 0, "Work Meeting"))
-
-        `when`(mockContentResolver.query(any(), any(), any(), any(), anyOrNull())).thenReturn(cursor)
-
-        assertTrue(ruleEngine.evaluate(rule, now))
-    }
-
-    @Test
-    fun `evaluate with ShiftWork returns true for work day`() {
-        val startDate = Instant.now().minus(2, ChronoUnit.DAYS)
-        val criteria = RuleCriteria.ShiftWork(cycleDays = 4, shiftsPerCycle = 2, startDate = startDate.toEpochMilli(), currentShiftIndex = 0)
-        val rule = createTestRule(criteria = criteria)
-
-        // Mock no holidays
-        `when`(mockContentResolver.query(any(), any(), any(), any(), anyOrNull())).thenReturn(null)
-
-        // Evaluation date is 2 days after start date, which is day 2 of a 4-day cycle.
-        // Since shiftsPerCycle is 2, day 0 and 1 are work days. Day 2 is an off day.
-        // Let's evaluate for day 1
-        val evaluationTime = startDate.plus(1, ChronoUnit.DAYS)
-        assertTrue(ruleEngine.evaluate(rule, evaluationTime))
-    }
-
-    @Test
-    fun `evaluate with ShiftWork returns false for off day`() {
-        val startDate = Instant.now().minus(2, ChronoUnit.DAYS)
-        val criteria = RuleCriteria.ShiftWork(cycleDays = 4, shiftsPerCycle = 2, startDate = startDate.toEpochMilli(), currentShiftIndex = 0)
-        val rule = createTestRule(criteria = criteria)
-
-        `when`(mockContentResolver.query(any(), any(), any(), any(), anyOrNull())).thenReturn(null)
-
-        val evaluationTime = startDate.plus(3, ChronoUnit.DAYS) // Day 3 is an off day
-        assertFalse(ruleEngine.evaluate(rule, evaluationTime))
-    }
-
-    @Test
-    fun `evaluate with ShiftWork returns false on a holiday with NORMAL_SCHEDULE`() {
-        val today = Instant.now()
-        val criteria = RuleCriteria.ShiftWork(
-            cycleDays = 4, shiftsPerCycle = 2, startDate = today.toEpochMilli(), currentShiftIndex = 0,
-            holidayCalendarIds = setOf(1L), holidayHandling = HolidayHandlingStrategy.NORMAL_SCHEDULE
+        val projection = arrayOf(
+            CalendarContract.Events.DTSTART,
+            CalendarContract.Events.DTEND,
+            CalendarContract.Events.ALL_DAY,
+            CalendarContract.Events.TITLE
         )
-        val rule = createTestRule(criteria = criteria, calendarIds = setOf(1L))
 
-        val cursor = MatrixCursor(arrayOf(CalendarContract.Events.DTSTART))
-        cursor.addRow(arrayOf(today.truncatedTo(ChronoUnit.DAYS).toEpochMilli()))
-        `when`(mockContentResolver.query(any(), any(), any(), any(), anyOrNull())).thenReturn(cursor)
+        val cursor = contentResolver.query(
+            CalendarContract.Events.CONTENT_URI,
+            projection,
+            selection,
+            selectionArgs,
+            null
+        )
 
-        assertFalse(ruleEngine.evaluate(rule, today))
+        cursor?.use {
+            while (it.moveToNext()) {
+                val dtStart = it.getLong(0)
+                val dtEnd = it.getLong(1)
+                val allDay = it.getInt(2) == 1
+                val title = it.getString(3) ?: ""
+
+                val eventStart = Instant.ofEpochMilli(dtStart)
+                val eventEnd = Instant.ofEpochMilli(dtEnd)
+
+                val matchesKeywords = criteria.keywords.isEmpty() || criteria.keywords.any { keyword -> title.contains(keyword, ignoreCase = true) }
+                val matchesAllDay = criteria.allDay == allDay
+
+                if (matchesKeywords && matchesAllDay) {
+                    if (allDay) {
+                        val evaluationDate = evaluationTime.atZone(ZoneId.systemDefault()).toLocalDate()
+                        val eventStartDate = eventStart.atZone(ZoneId.systemDefault()).toLocalDate()
+                        if (evaluationDate.isEqual(eventStartDate)) {
+                            return true
+                        }
+                    } else {
+                        val checkTime = evaluationTime.plus(criteria.timeRangeMinutes.toLong(), ChronoUnit.MINUTES)
+                        if (!checkTime.isBefore(eventStart) && !checkTime.isAfter(eventEnd)) {
+                            return true
+                        }
+                    }
+                }
+            }
+        }
+        return false
     }
 
-    private fun createTestRule(enabled: Boolean = true, criteria: RuleCriteria, calendarIds: Set<Long> = emptySet()): Rule {
-        return Rule(
-            id = UUID.randomUUID(),
-            name = "Test Rule",
-            description = "Test Description",
-            enabled = enabled,
-            targetAlarmIds = setOf(UUID.randomUUID()),
-            calendarIds = calendarIds,
-            criteria = criteria,
-            action = RuleAction.SkipNextAlarm
+    private fun checkShiftWork(criteria: RuleCriteria.ShiftWork, evaluationTime: Instant): Boolean {
+        val startDate = Instant.ofEpochMilli(criteria.startDate).atZone(ZoneId.systemDefault()).toLocalDate()
+        val evaluationDate = evaluationTime.atZone(ZoneId.systemDefault()).toLocalDate()
+
+        if (evaluationDate.isBefore(startDate)) {
+            return false
+        }
+
+        // If the evaluation date is a holiday, it's not a work day.
+        if (isHoliday(evaluationDate, criteria.holidayCalendarIds)) {
+            return false
+        }
+
+        val daysBetween = when (criteria.holidayHandling) {
+            HolidayHandlingStrategy.NORMAL_SCHEDULE -> {
+                ChronoUnit.DAYS.between(startDate, evaluationDate)
+            }
+            HolidayHandlingStrategy.POSTPONE_SCHEDULE -> {
+                val holidays = countHolidays(startDate, evaluationDate, criteria.holidayCalendarIds)
+                ChronoUnit.DAYS.between(startDate, evaluationDate) - holidays
+            }
+        }
+
+        val dayInCycle = (daysBetween % criteria.cycleDays).toInt()
+        return dayInCycle < criteria.shiftsPerCycle
+    }
+
+    private fun isHoliday(date: LocalDate, holidayCalendarIds: Set<Long>): Boolean {
+        if (holidayCalendarIds.isEmpty()) return false
+        return countHolidays(date, date, holidayCalendarIds) > 0
+    }
+
+    private fun countHolidays(startDate: LocalDate, endDate: LocalDate, holidayCalendarIds: Set<Long>): Long {
+        if (holidayCalendarIds.isEmpty()) return 0
+
+        val startTimeMillis = startDate.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
+        val endTimeMillis = endDate.plusDays(1).atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
+
+        val selection = "(${CalendarContract.Events.CALENDAR_ID} IN (${holidayCalendarIds.joinToString(",")})) AND " +
+                "(${CalendarContract.Events.DTSTART} < $endTimeMillis) AND (${CalendarContract.Events.DTEND} > $startTimeMillis) AND " +
+                "(${CalendarContract.Events.ALL_DAY} = 1)"
+
+        val projection = arrayOf(CalendarContract.Events.DTSTART)
+        val cursor = contentResolver.query(
+            CalendarContract.Events.CONTENT_URI,
+            projection,
+            selection,
+            null,
+            null
         )
+
+        var holidayCount = 0L
+        cursor?.use {
+            val holidayDates = mutableSetOf<LocalDate>()
+            while (it.moveToNext()) {
+                val eventStart = Instant.ofEpochMilli(it.getLong(0)).atZone(ZoneId.systemDefault()).toLocalDate()
+                if (!eventStart.isBefore(startDate) && !eventStart.isAfter(endDate)) {
+                    holidayDates.add(eventStart)
+                }
+            }
+            holidayCount = holidayDates.size.toLong()
+        }
+        return holidayCount
     }
 }
