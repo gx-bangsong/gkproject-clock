@@ -11,7 +11,7 @@ import org.mockito.ArgumentMatchers.any
 import org.mockito.Mock
 import org.mockito.Mockito.*
 import org.mockito.junit.MockitoJUnitRunner
-import org.mockito.kotlin.anyOrNull
+import org.mockito.kotlin.anyOrNull // Correct import
 import java.time.Instant
 import java.time.LocalDateTime
 import java.time.LocalTime
@@ -74,10 +74,10 @@ class RuleEngineTest {
     @Test
     fun `evaluateRules with ShiftWork returns correct action for work day`() {
         val startDate = Instant.now().minus(2, ChronoUnit.DAYS)
-        val criteria = RuleCriteria.ShiftWork(cycleDays = 4, shiftsPerCycle = 2, startDate = startDate.toEpochMilli())
+        // Add currentShiftIndex
+        val criteria = RuleCriteria.ShiftWork(cycleDays = 4, shiftsPerCycle = 2, startDate = startDate.toEpochMilli(), currentShiftIndex = 0)
         val rule = createTestRule(criteria = criteria)
 
-        // Mock no holidays
         `when`(mockContentResolver.query(any(), any(), any(), any(), anyOrNull())).thenReturn(null)
 
         val evaluationTime = startDate.plus(1, ChronoUnit.DAYS)
@@ -88,12 +88,13 @@ class RuleEngineTest {
     @Test
     fun `evaluateRules with ShiftWork returns null for off day`() {
         val startDate = Instant.now().minus(2, ChronoUnit.DAYS)
-        val criteria = RuleCriteria.ShiftWork(cycleDays = 4, shiftsPerCycle = 2, startDate = startDate.toEpochMilli())
+        // Add currentShiftIndex
+        val criteria = RuleCriteria.ShiftWork(cycleDays = 4, shiftsPerCycle = 2, startDate = startDate.toEpochMilli(), currentShiftIndex = 0)
         val rule = createTestRule(criteria = criteria)
 
         `when`(mockContentResolver.query(any(), any(), any(), any(), anyOrNull())).thenReturn(null)
 
-        val evaluationTime = startDate.plus(3, ChronoUnit.DAYS) // Day 3 is an off day
+        val evaluationTime = startDate.plus(3, ChronoUnit.DAYS)
         val result = ruleEngine.evaluateRules(listOf(rule), LocalDateTime.ofInstant(evaluationTime, java.time.ZoneId.systemDefault()))
         assertNull(result)
     }
@@ -101,9 +102,10 @@ class RuleEngineTest {
     @Test
     fun `evaluateRules with ShiftWork returns null on a holiday with NORMAL_SCHEDULE`() {
         val today = Instant.now()
+        // Add currentShiftIndex
         val criteria = RuleCriteria.ShiftWork(
             cycleDays = 4, shiftsPerCycle = 2, startDate = today.toEpochMilli(),
-            holidayCalendarIds = setOf(1L), holidayHandling = HolidayHandlingStrategy.NORMAL_SCHEDULE
+            holidayCalendarIds = setOf(1L), holidayHandling = HolidayHandlingStrategy.NORMAL_SCHEDULE, currentShiftIndex = 0
         )
         val rule = createTestRule(criteria = criteria)
 
