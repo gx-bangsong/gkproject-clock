@@ -48,6 +48,15 @@ android {
             resources.srcDirs("libs")  // 设置资源目录
         }
     }
+
+    testOptions {
+        unitTests.all {
+            it.jvmArgs(
+                "--add-opens=java.base/java.lang=ALL-UNNAMED",
+                "--add-opens=java.base/java.util=ALL-UNNAMED"
+            )
+        }
+    }
 }
 
 //repositories {
