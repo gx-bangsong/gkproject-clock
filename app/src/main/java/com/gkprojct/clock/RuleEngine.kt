@@ -5,6 +5,7 @@ import android.provider.CalendarContract
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
+
 import java.time.LocalTime
 import java.time.ZoneId
 import java.time.temporal.ChronoUnit
@@ -49,6 +50,7 @@ class RuleEngine(private val contentResolver: ContentResolver) {
             }
         }
         return null
+
     }
 
     private fun checkCalendarEvents(calendarIds: Set<Long>, criteria: RuleCriteria.IfCalendarEventExists, evaluationTime: Instant): Boolean {
