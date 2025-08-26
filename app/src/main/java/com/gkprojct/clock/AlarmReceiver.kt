@@ -29,7 +29,7 @@ class AlarmReceiver : BroadcastReceiver() {
                 val db = AppDatabase.getDatabase(context.applicationContext)
                 val ruleDao = db.ruleDao()
                 val alarmDao = db.alarmDao()
-                val ruleEngine = RuleEngine() // Use our new engine
+                val ruleEngine = RuleEngine(context.contentResolver) // Pass ContentResolver
 
                 val alarmIdStr = intent.getStringExtra("ALARM_ID")
                 if (alarmIdStr == null) {
@@ -53,14 +53,8 @@ class AlarmReceiver : BroadcastReceiver() {
                     )
                 }
 
-                // Create a dummy list of calendar events for evaluation
-                val dummyEvents = listOf(
-                    CalendarEvent("Team Meeting", java.time.LocalDateTime.now().plusHours(1), java.time.LocalDateTime.now().plusHours(2), false),
-                    CalendarEvent("Public Holiday", java.time.LocalDateTime.now().truncatedTo(java.time.temporal.ChronoUnit.DAYS), java.time.LocalDateTime.now().truncatedTo(java.time.temporal.ChronoUnit.DAYS).plusDays(1), true)
-                )
-
                 // Evaluate rules
-                val resultAction = ruleEngine.evaluateRules(relevantRules, java.time.LocalDateTime.now(), dummyEvents)
+                val resultAction = ruleEngine.evaluateRules(relevantRules, java.time.LocalDateTime.now())
 
                 when (resultAction) {
                     is RuleAction.SkipNextAlarm -> {
