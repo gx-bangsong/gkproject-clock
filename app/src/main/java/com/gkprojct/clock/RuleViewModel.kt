@@ -21,7 +21,7 @@ import java.util.UUID
 class RuleViewModel(private val ruleDao: RuleDao) : ViewModel() {
 
     // Flow of all rules from the database, collected as State in Composable
-    private val allRules: Flow<List<RuleEntity>> = ruleDao.getAllRules()
+    val allRules: Flow<List<RuleEntity>> = ruleDao.getAllRules()
 
     val allRulesAsUiModel: Flow<List<Rule>> = allRules.map { ruleEntities ->
         ruleEntities.map { entity ->
