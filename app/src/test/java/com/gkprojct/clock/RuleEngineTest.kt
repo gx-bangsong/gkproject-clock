@@ -7,13 +7,11 @@ import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
-import org.mockito.ArgumentMatchers.any
+import org.mockito.ArgumentMatchers.anyOrNull
 import org.mockito.Mock
 import org.mockito.Mockito.*
 import org.mockito.junit.MockitoJUnitRunner
-import org.mockito.kotlin.anyOrNull // Correct import
 import java.time.Instant
-import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.temporal.ChronoUnit
 import java.util.*
@@ -32,99 +30,84 @@ class RuleEngineTest {
     }
 
     @Test
-    fun `evaluateRules with AlwaysTrue returns correct action`() {
+    fun `evaluate with AlwaysTrue returns true`() {
         val rule = createTestRule(criteria = RuleCriteria.AlwaysTrue)
-        val result = ruleEngine.evaluateRules(listOf(rule), LocalDateTime.now())
-        assertEquals(rule.action, result)
+        assertTrue(ruleEngine.evaluate(rule, Instant.now()))
     }
 
     @Test
-    fun `evaluateRules with disabled rule returns null`() {
+    fun `evaluate with disabled rule returns false`() {
         val rule = createTestRule(enabled = false, criteria = RuleCriteria.AlwaysTrue)
-        val result = ruleEngine.evaluateRules(listOf(rule), LocalDateTime.now())
-        assertNull(result)
+        assertFalse(ruleEngine.evaluate(rule, Instant.now()))
     }
 
     @Test
-    fun `evaluateRules with BasedOnTime returns correct action when within time range`() {
+    fun `evaluate with BasedOnTime returns true when within time range`() {
         val rule = createTestRule(criteria = RuleCriteria.BasedOnTime(LocalTime.of(8, 0), LocalTime.of(17, 0)))
-        val evaluationTime = LocalDateTime.parse("2023-10-27T10:00:00")
-        val result = ruleEngine.evaluateRules(listOf(rule), evaluationTime)
-        assertEquals(rule.action, result)
+        val evaluationTime = Instant.parse("2023-10-27T10:00:00Z")
+        assertTrue(ruleEngine.evaluate(rule, evaluationTime))
     }
 
     @Test
-fun `evaluateRules with IfCalendarEventExists returns correct action for matching event`() {
-    val criteria = RuleCriteria.IfCalendarEventExists(keywords = listOf("Work"), timeRangeMinutes = 60, allDay = false)
-    val rule = createTestRule(criteria = criteria, calendarIds = setOf(1L))
+    fun `evaluate with IfCalendarEventExists returns true for matching event`() {
+        val criteria = RuleCriteria.IfCalendarEventExists(keywords = listOf("Work"), timeRangeMinutes = 60, allDay = false)
+        val rule = createTestRule(criteria = criteria, calendarIds = setOf(1L))
 
-    val now = Instant.now()
-    val eventStart = now.plus(30, ChronoUnit.MINUTES)
-    val eventEnd = now.plus(90, ChronoUnit.MINUTES)
+        val now = Instant.now()
+        val eventStart = now.plus(30, ChronoUnit.MINUTES)
+        val eventEnd = now.plus(90, ChronoUnit.MINUTES)
 
-    // Create a mock cursor instead of a real MatrixCursor
-    val mockCursor = mock(MatrixCursor::class.java)
+        val cursor = MatrixCursor(arrayOf(CalendarContract.Events.DTSTART, CalendarContract.Events.DTEND, CalendarContract.Events.ALL_DAY, CalendarContract.Events.TITLE))
+        cursor.addRow(arrayOf(eventStart.toEpochMilli(), eventEnd.toEpochMilli(), 0, "Work Meeting"))
 
-    // Define the mock behavior
-    `when`(mockCursor.moveToNext()).thenReturn(true, false) // moves once, then returns false
-    `when`(mockCursor.getLong(0)).thenReturn(eventStart.toEpochMilli()) // DTSTART
-    `when`(mockCursor.getLong(1)).thenReturn(eventEnd.toEpochMilli())   // DTEND
-    `when`(mockCursor.getInt(2)).thenReturn(0)                          // ALL_DAY
-    `when`(mockCursor.getString(3)).thenReturn("Work Meeting")          // TITLE
+        `when`(mockContentResolver.query(any(), any(), any(), any(), anyOrNull())).thenReturn(cursor)
 
-    `when`(mockContentResolver.query(any(), any(), any(), any(), anyOrNull())).thenReturn(mockCursor)
-
-    val result = ruleEngine.evaluateRules(listOf(rule), LocalDateTime.now())
-    assertEquals(rule.action, result)
-}
+        assertTrue(ruleEngine.evaluate(rule, now))
+    }
 
     @Test
-    fun `evaluateRules with ShiftWork returns correct action for work day`() {
+    fun `evaluate with ShiftWork returns true for work day`() {
         val startDate = Instant.now().minus(2, ChronoUnit.DAYS)
-        // Add currentShiftIndex
         val criteria = RuleCriteria.ShiftWork(cycleDays = 4, shiftsPerCycle = 2, startDate = startDate.toEpochMilli(), currentShiftIndex = 0)
         val rule = createTestRule(criteria = criteria)
 
-        //`when`(mockContentResolver.query(any(), any(), any(), any(), anyOrNull())).thenReturn(null)
+        // Mock no holidays
+        `when`(mockContentResolver.query(any(), any(), any(), any(), anyOrNull())).thenReturn(null)
 
+        // Evaluation date is 2 days after start date, which is day 2 of a 4-day cycle.
+        // Since shiftsPerCycle is 2, day 0 and 1 are work days. Day 2 is an off day.
+        // Let's evaluate for day 1
         val evaluationTime = startDate.plus(1, ChronoUnit.DAYS)
-        val result = ruleEngine.evaluateRules(listOf(rule), LocalDateTime.ofInstant(evaluationTime, java.time.ZoneId.systemDefault()))
-        assertEquals(rule.action, result)
+        assertTrue(ruleEngine.evaluate(rule, evaluationTime))
     }
 
     @Test
-    fun `evaluateRules with ShiftWork returns null for off day`() {
+    fun `evaluate with ShiftWork returns false for off day`() {
         val startDate = Instant.now().minus(2, ChronoUnit.DAYS)
-        // Add currentShiftIndex
         val criteria = RuleCriteria.ShiftWork(cycleDays = 4, shiftsPerCycle = 2, startDate = startDate.toEpochMilli(), currentShiftIndex = 0)
         val rule = createTestRule(criteria = criteria)
 
-        //`when`(mockContentResolver.query(any(), any(), any(), any(), anyOrNull())).thenReturn(null)
+        `when`(mockContentResolver.query(any(), any(), any(), any(), anyOrNull())).thenReturn(null)
 
-        val evaluationTime = startDate.plus(3, ChronoUnit.DAYS)
-        val result = ruleEngine.evaluateRules(listOf(rule), LocalDateTime.ofInstant(evaluationTime, java.time.ZoneId.systemDefault()))
-        assertNull(result)
+        val evaluationTime = startDate.plus(3, ChronoUnit.DAYS) // Day 3 is an off day
+        assertFalse(ruleEngine.evaluate(rule, evaluationTime))
     }
 
     @Test
-fun `evaluateRules with ShiftWork returns null on a holiday with NORMAL_SCHEDULE`() {
-    val today = Instant.now()
-    val criteria = RuleCriteria.ShiftWork(
-        cycleDays = 4, shiftsPerCycle = 2, startDate = today.toEpochMilli(),
-        holidayCalendarIds = setOf(1L), holidayHandling = HolidayHandlingStrategy.NORMAL_SCHEDULE, currentShiftIndex = 0
-    )
-    val rule = createTestRule(criteria = criteria)
+    fun `evaluate with ShiftWork returns false on a holiday with NORMAL_SCHEDULE`() {
+        val today = Instant.now()
+        val criteria = RuleCriteria.ShiftWork(
+            cycleDays = 4, shiftsPerCycle = 2, startDate = today.toEpochMilli(), currentShiftIndex = 0,
+            holidayCalendarIds = setOf(1L), holidayHandling = HolidayHandlingStrategy.NORMAL_SCHEDULE
+        )
+        val rule = createTestRule(criteria = criteria, calendarIds = setOf(1L))
 
-    // Create a mock cursor instead of a real MatrixCursor
-    val mockCursor = mock(MatrixCursor::class.java)
-    `when`(mockCursor.moveToNext()).thenReturn(true, false)
-    `when`(mockCursor.getLong(0)).thenReturn(today.truncatedTo(ChronoUnit.DAYS).toEpochMilli())
+        val cursor = MatrixCursor(arrayOf(CalendarContract.Events.DTSTART))
+        cursor.addRow(arrayOf(today.truncatedTo(ChronoUnit.DAYS).toEpochMilli()))
+        `when`(mockContentResolver.query(any(), any(), any(), any(), anyOrNull())).thenReturn(cursor)
 
-    `when`(mockContentResolver.query(any(), any(), any(), any(), anyOrNull())).thenReturn(mockCursor)
-
-    val result = ruleEngine.evaluateRules(listOf(rule), LocalDateTime.ofInstant(today, java.time.ZoneId.systemDefault()))
-    assertNull(result)
-}
+        assertFalse(ruleEngine.evaluate(rule, today))
+    }
 
     private fun createTestRule(enabled: Boolean = true, criteria: RuleCriteria, calendarIds: Set<Long> = emptySet()): Rule {
         return Rule(

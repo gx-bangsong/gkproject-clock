@@ -10,6 +10,7 @@ import androidx.lifecycle.viewModelScope
 import com.gkprojct.clock.vm.RuleDao
 import com.gkprojct.clock.vm.RuleEntity
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import java.util.UUID
 
@@ -20,7 +21,22 @@ import java.util.UUID
 class RuleViewModel(private val ruleDao: RuleDao) : ViewModel() {
 
     // Flow of all rules from the database, collected as State in Composable
-    val allRules: Flow<List<RuleEntity>> = ruleDao.getAllRules()
+    private val allRules: Flow<List<RuleEntity>> = ruleDao.getAllRules()
+
+    val allRulesAsUiModel: Flow<List<Rule>> = allRules.map { ruleEntities ->
+        ruleEntities.map { entity ->
+            Rule(
+                id = entity.id,
+                name = entity.name,
+                description = entity.description,
+                enabled = entity.enabled,
+                targetAlarmIds = entity.targetAlarmIds,
+                calendarIds = entity.calendarIds,
+                criteria = entity.criteria,
+                action = entity.action
+            )
+        }
+    }
 
     // 保存规则 (插入或更新)
     fun saveRule(rule: Rule) {

@@ -6,16 +6,13 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.runtime.remember
 import java.time.LocalTime // Use java.time for time
 import java.time.format.DateTimeFormatter // Use java.time for time formatting
 import java.time.DayOfWeek // Use java.time.DayOfWeek
@@ -27,64 +24,31 @@ import java.time.temporal.ChronoUnit // For calculating duration
 // Adjust import if you named your shared file differently
 
 
-// Data class to hold bedtime settings
-data class BedtimeSettings(
-    val bedtime: LocalTime,
-    val wakeUpTime: LocalTime,
-    val activeDays: Set<DayOfWeek>
-)
-
-// Function to calculate sleep duration accurately
-private fun calculateDurationText(start: LocalTime, end: LocalTime): String {
-    val totalMinutes = if (end.isAfter(start)) {
-        ChronoUnit.MINUTES.between(start, end)
-    } else {
-        ChronoUnit.MINUTES.between(start, LocalTime.MAX) + 1 + ChronoUnit.MINUTES.between(LocalTime.MIN, end)
-    }
-    val hours = totalMinutes / 60
-    val minutes = totalMinutes % 60
-    return when {
-        minutes == 0L -> "$hours hours"
-        hours == 0L -> "$minutes minutes"
-        else -> "$hours hours $minutes minutes"
-    }
-}
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun BedtimeScreen(onSettingsClick: () -> Unit) { // Main Bedtime screen after setup
 
     // Note: Bottom navigation state and composable are now in MainActivity/AppContent
 
-    // State representing fetched settings. Using remember as a placeholder for a ViewModel.
-    val settings by remember {
-        mutableStateOf(
-            BedtimeSettings(
-                bedtime = LocalTime.of(23, 0),
-                wakeUpTime = LocalTime.of(7, 0),
-                activeDays = setOf(DayOfWeek.SUNDAY, DayOfWeek.MONDAY, DayOfWeek.TUESDAY, DayOfWeek.WEDNESDAY, DayOfWeek.THURSDAY)
-            )
-        )
+    // TODO: Fetch actual bedtime and wake-up time from saved settings
+    // For now, using placeholder values
+    val bedtime = LocalTime.of(23, 0) // Example 11:00 PM
+    val wakeUpTime = LocalTime.of(7, 0) // Example 7:00 AM
+
+    // TODO: Calculate duration accurately
+    val durationHours = ChronoUnit.HOURS.between(bedtime, wakeUpTime).let {
+        if (it < 0) it + 24 else it
     }
-
-    val durationText = calculateDurationText(settings.bedtime, settings.wakeUpTime)
-
-    // A simple logic to find the next alarm day.
-    val nextAlarmDay = remember(settings.activeDays) {
-        if (settings.activeDays.isEmpty()) null
-        else {
-            var today = java.time.LocalDate.now().dayOfWeek
-            var checkCount = 0
-            while (checkCount < 8) {
-                if (today in settings.activeDays) return@remember today
-                today = today.plus(1)
-                checkCount++
-            }
-            null // No active days found
-        }
+    val durationMinutes = ChronoUnit.MINUTES.between(bedtime.plusHours(durationHours.toLong()), wakeUpTime).let {
+        if (it < 0) it + 60
+        else it
     }
+    val durationText = if (durationMinutes == 0L) "$durationHours hours" else "$durationHours hours $durationMinutes minutes"
 
-    var showBedtimeActivityCard by remember { mutableStateOf(true) }
+
+    // TODO: Fetch next alarm day based on setup settings
+    val nextAlarmDay = DayOfWeek.SUNDAY // Example
+
 
     Scaffold(
         topBar = {
@@ -109,35 +73,33 @@ fun BedtimeScreen(onSettingsClick: () -> Unit) { // Main Bedtime screen after se
             item {
                 // --- Schedule Card ---
                 ScheduleCard(
-                    bedtime = settings.bedtime,
-                    wakeUpTime = settings.wakeUpTime,
-                    durationText = durationText,
-                    nextAlarmDay = nextAlarmDay,
-                    onClick = { println("Navigate to edit schedule screen") }
+                    bedtime = bedtime, // Use placeholder/fetched data
+                    wakeUpTime = wakeUpTime, // Use placeholder/fetched data
+                    durationText = durationText, // Use calculated duration text
+                    nextAlarmDay = nextAlarmDay, // Use placeholder/fetched data
+                    onClick = { /* TODO: Handle Schedule card click (likely navigate to edit schedule) */ }
                 )
             }
 
-            if (showBedtimeActivityCard) {
-                item {
-                    // --- Recent Bedtime Activity Card ---
-                    BedtimeActivityCard(
-                        onNoThanksClick = { showBedtimeActivityCard = false },
-                        onResumeClick = { println("Navigate to bedtime activity screen") }
-                    )
-                }
+            item {
+                // --- Recent Bedtime Activity Card ---
+                BedtimeActivityCard(
+                    onNoThanksClick = { /* TODO */ },
+                    onResumeClick = { /* TODO */ } // Changed from Continue
+                )
             }
 
             item {
                 // --- Listen to Sleep Sounds Card ---
                 SleepSoundsCard(
-                    onChooseSoundClick = { println("Navigate to sound picker screen") }
+                    onChooseSoundClick = { /* TODO: Navigate to sound picker */ }
                 )
             }
 
             item {
                 // --- See your upcoming events Card ---
                 UpcomingEventsCard(
-                    onClick = { println("Navigate to events screen") }
+                    onClick = { /* TODO: Navigate to events */ }
                 )
             }
 
@@ -154,7 +116,7 @@ fun ScheduleCard(
     bedtime: LocalTime,
     wakeUpTime: LocalTime,
     durationText: String, // Accept formatted duration text
-    nextAlarmDay: DayOfWeek?,
+    nextAlarmDay: DayOfWeek,
     onClick: () -> Unit
 ) {
     Surface(
@@ -238,14 +200,12 @@ fun ScheduleCard(
                     fontSize = 14.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                if (nextAlarmDay != null) {
-                    Text(" • ", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 14.sp) // Match font size
-                    Text(
-                        text = "Next alarm on ${nextAlarmDay.getDisplayName(java.time.format.TextStyle.FULL, Locale.getDefault())}", // Get full localized name
-                        fontSize = 14.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
+                Text(" • ", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 14.sp) // Match font size
+                Text(
+                    text = "Next alarm on ${nextAlarmDay.getDisplayName(java.time.format.TextStyle.FULL, Locale.getDefault())}", // Get full localized name
+                    fontSize = 14.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
         }
     }
