@@ -50,7 +50,6 @@ android {
     }
 
     testOptions {
-        unitTests.returnDefaultValues = true
         unitTests.all {
             it.jvmArgs(
                 "--add-opens=java.base/java.lang=ALL-UNNAMED",
