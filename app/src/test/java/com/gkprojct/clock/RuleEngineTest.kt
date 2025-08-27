@@ -15,6 +15,8 @@ import java.time.Instant
 import java.time.LocalTime
 import java.time.temporal.ChronoUnit
 import java.util.*
+import com.gkprojct.clock.RuleEngine
+
 
 @RunWith(MockitoJUnitRunner::class)
 class RuleEngineTest {
