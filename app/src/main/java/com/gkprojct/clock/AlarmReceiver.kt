@@ -6,13 +6,11 @@ import android.app.Notification
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import android.content.pm.PackageManager
-import android.os.Build
 import android.util.Log
 import android.widget.Toast
+import androidx.annotation.RequiresPermission
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
-import androidx.core.content.ContextCompat
 import com.gkprojct.clock.vm.AppDatabase
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -24,6 +22,7 @@ import java.time.LocalTime
 import java.util.*
 
 class AlarmReceiver : BroadcastReceiver() {
+    @RequiresPermission(Manifest.permission.POST_NOTIFICATIONS)
     override fun onReceive(context: Context, intent: Intent) {
         val pendingResult = goAsync()
         CoroutineScope(Dispatchers.IO).launch {
@@ -32,44 +31,56 @@ class AlarmReceiver : BroadcastReceiver() {
                 val ruleDao = db.ruleDao()
                 val alarmDao = db.alarmDao()
                 val ruleEngine = RuleEngine(context.contentResolver)
+                val rules = ruleDao.getAllRules().first()
+
+                var shouldSkip = false
+                var adjustedTime: LocalTime? = null
 
                 val alarmIdStr = intent.getStringExtra("ALARM_ID")
                 if (alarmIdStr == null) {
-                    Log.e("AlarmReceiver", "Received intent with null ALARM_ID.")
+                    withContext(Dispatchers.Main) { showNotification(context) }
                     return@launch
                 }
+
                 val alarmId = UUID.fromString(alarmIdStr)
                 val originalAlarmEntity = alarmDao.getAlarmById(alarmId)
-                if (originalAlarmEntity == null) {
-                    Log.e("AlarmReceiver", "Original alarm not found for ID: $alarmIdStr")
-                    return@launch
-                }
 
-                // Fetch rules relevant to this alarm
-                val allRules = ruleDao.getAllRules().first()
-                val relevantRules = allRules.filter { it.targetAlarmIds.contains(alarmId) }.map {
-                    Rule(
-                        id = it.id, name = it.name, description = it.description, enabled = it.enabled,
-                        targetAlarmIds = it.targetAlarmIds, calendarIds = it.calendarIds,
-                        criteria = it.criteria, action = it.action
-                    )
-                }
+                if (originalAlarmEntity != null) {
+                    for (ruleEntity in rules) {
+                        if (!ruleEntity.enabled || !ruleEntity.targetAlarmIds.contains(alarmId)) continue
 
-                // Evaluate rules
-                val resultAction = ruleEngine.evaluateRules(relevantRules, java.time.LocalDateTime.now())
+                        val rule = Rule(
+                            id = ruleEntity.id,
+                            name = ruleEntity.name,
+                            description = ruleEntity.description,
+                            enabled = ruleEntity.enabled,
+                            targetAlarmIds = ruleEntity.targetAlarmIds,
+                            calendarIds = ruleEntity.calendarIds,
+                            criteria = ruleEntity.criteria,
+                            action = ruleEntity.action
+                        )
 
-                when (resultAction) {
-                    is RuleAction.SkipNextAlarm -> {
-                        Log.d("AlarmReceiver", "Alarm ${originalAlarmEntity.label} skipped by a rule.")
-                        // Just don't show the notification
+                        if (ruleEngine.evaluate(rule, Instant.now())) {
+                            when (val action = rule.action) {
+                                is RuleAction.SkipNextAlarm -> {
+                                    shouldSkip = true
+                                    break
+                                }
+                                is RuleAction.AdjustAlarmTime -> {
+                                    adjustedTime = action.newTime
+                                }
+                            }
+                        }
                     }
-                    is RuleAction.AdjustAlarmTime -> {
-                        val adjustedTime = resultAction.newTime
+
+                    if (shouldSkip) {
+                        Log.d("AlarmReceiver", "Alarm ${originalAlarmEntity.label} skipped by a rule.")
+                    } else if (adjustedTime != null) {
                         Log.d("AlarmReceiver", "Alarm ${originalAlarmEntity.label} adjusted to $adjustedTime by a rule.")
                         val originalCalendar = Calendar.getInstance().apply { timeInMillis = originalAlarmEntity.timeInMillis }
                         val adjustedCalendar = (originalCalendar.clone() as Calendar).apply {
-                            set(Calendar.HOUR_OF_DAY, adjustedTime.hour)
-                            set(Calendar.MINUTE, adjustedTime.minute)
+                            set(Calendar.HOUR_OF_DAY, adjustedTime!!.hour)
+                            set(Calendar.MINUTE, adjustedTime!!.minute)
                             set(Calendar.SECOND, 0)
                             set(Calendar.MILLISECOND, 0)
                         }
@@ -87,26 +98,16 @@ class AlarmReceiver : BroadcastReceiver() {
                         )
                         AlarmScheduler.schedule(context, adjustedAlarm)
                         Log.d("AlarmReceiver", "Scheduled adjusted alarm for ${adjustedAlarm.time.time}")
-                    }
-                    null -> {
-                        // No rules matched, fire original alarm
+                    } else {
                         withContext(Dispatchers.Main) {
                             showNotification(context)
                         }
                     }
-                }
 
-                // Reschedule repeating alarms
-                if (originalAlarmEntity.repeatingDays.isNotEmpty()) {
-                        val nextAlarmCalendar = Calendar.getInstance().apply {
-                            timeInMillis = originalAlarmEntity.timeInMillis
-                        }
-                        // Advance to the next occurrence
-                        nextAlarmCalendar.add(Calendar.DAY_OF_YEAR, 1)
-
+                    if (originalAlarmEntity.repeatingDays.isNotEmpty()) {
                         val originalAlarm = Alarm(
                             id = originalAlarmEntity.id,
-                            time = nextAlarmCalendar,
+                            time = Calendar.getInstance().apply { timeInMillis = originalAlarmEntity.timeInMillis },
                             label = originalAlarmEntity.label,
                             isEnabled = originalAlarmEntity.isEnabled,
                             repeatingDays = originalAlarmEntity.repeatingDays,
@@ -115,8 +116,9 @@ class AlarmReceiver : BroadcastReceiver() {
                             appliedRules = originalAlarmEntity.appliedRules
                         )
                         AlarmScheduler.schedule(context, originalAlarm)
-                        Log.d("AlarmReceiver", "Rescheduled repeating alarm: ${originalAlarm.label} for ${nextAlarmCalendar.time}")
+                        Log.d("AlarmReceiver", "Rescheduled repeating alarm: ${originalAlarm.label}")
                     }
+                }
             } finally {
                 pendingResult.finish()
             }
@@ -125,13 +127,6 @@ class AlarmReceiver : BroadcastReceiver() {
 
     @SuppressLint("MissingPermission")
     private fun showNotification(context: Context) {
-        // 在调用 notify() 前检查 POST_NOTIFICATIONS 权限
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
-            Log.w("AlarmReceiver", "Notification permission not granted. Cannot show notification.")
-            return
-        }
-
         val notification = createNotification(context)
         val notificationManager = NotificationManagerCompat.from(context)
         notificationManager.notify(AlarmService.NOTIFICATION_ID, notification)
