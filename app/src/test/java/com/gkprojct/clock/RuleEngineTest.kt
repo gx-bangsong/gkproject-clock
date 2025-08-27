@@ -85,7 +85,7 @@ fun `evaluateRules with IfCalendarEventExists returns correct action for matchin
         val criteria = RuleCriteria.ShiftWork(cycleDays = 4, shiftsPerCycle = 2, startDate = startDate.toEpochMilli(), currentShiftIndex = 0)
         val rule = createTestRule(criteria = criteria)
 
-        `when`(mockContentResolver.query(any(), any(), any(), any(), anyOrNull())).thenReturn(null)
+        //`when`(mockContentResolver.query(any(), any(), any(), any(), anyOrNull())).thenReturn(null)
 
         val evaluationTime = startDate.plus(1, ChronoUnit.DAYS)
         val result = ruleEngine.evaluateRules(listOf(rule), LocalDateTime.ofInstant(evaluationTime, java.time.ZoneId.systemDefault()))
@@ -99,7 +99,7 @@ fun `evaluateRules with IfCalendarEventExists returns correct action for matchin
         val criteria = RuleCriteria.ShiftWork(cycleDays = 4, shiftsPerCycle = 2, startDate = startDate.toEpochMilli(), currentShiftIndex = 0)
         val rule = createTestRule(criteria = criteria)
 
-        `when`(mockContentResolver.query(any(), any(), any(), any(), anyOrNull())).thenReturn(null)
+        //`when`(mockContentResolver.query(any(), any(), any(), any(), anyOrNull())).thenReturn(null)
 
         val evaluationTime = startDate.plus(3, ChronoUnit.DAYS)
         val result = ruleEngine.evaluateRules(listOf(rule), LocalDateTime.ofInstant(evaluationTime, java.time.ZoneId.systemDefault()))
