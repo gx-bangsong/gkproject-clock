@@ -51,8 +51,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MaterialTheme.colorScheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
@@ -165,12 +163,6 @@ fun AlarmScreen(
     var showRuleSelectionDialog by remember { mutableStateOf(false) }
     // State to hold the alarm for which the dialog is shown
     var selectedAlarmForRules by remember { mutableStateOf<Alarm?>(null) }
-    // --- State for Label Edit Dialog ---
-    var showLabelEditDialogFor by remember { mutableStateOf<Alarm?>(null) }
-    // ---------------------------------
-    // --- State for Sound Selection Dialog ---
-    var showSoundSelectionDialogFor by remember { mutableStateOf<Alarm?>(null) }
-    // ------------------------------------
 
     // --- State for Time Picker Dialog ---
     var showTimePicker by remember { mutableStateOf(false) }
@@ -182,21 +174,7 @@ fun AlarmScreen(
     // -----------------------------------
 
     // --- Collect available rules from ViewModel --- (Corrected)
-    val availableRules: List<Rule> by ruleViewModel.allRules
-        .map { ruleEntities ->
-            ruleEntities.map { entity ->
-                // Map RuleEntity to Rule UI model (ensure Rule constructor exists and is imported)
-                Rule(
-                    id = entity.id,
-                    name = entity.name,
-                    description = entity.description,
-                    enabled = entity.enabled,
-                    targetAlarmIds = entity.targetAlarmIds,
-                    calendarIds = entity.calendarIds,
-                    criteria = entity.criteria // Ensure criteria types match
-                )
-            }
-        }
+    val availableRules: List<Rule> by ruleViewModel.allRulesAsUiModel
         .collectAsState(initial = emptyList<Rule>()) // Specify type for initial value
     // --------------------------------------------
 
@@ -240,9 +218,9 @@ fun AlarmScreen(
                         onToggleExpand = { currentAlarmState = currentAlarmState.copy(isExpanded = !currentAlarmState.isExpanded) },
                         onToggleEnable = { enabled -> currentAlarmState = currentAlarmState.copy(isEnabled = enabled) },
                         onDelete = { alarms.removeAt(index) }, // Simple delete for now
-                        onLabelClick = { showLabelEditDialogFor = currentAlarmState },
+                        onLabelChange = { newLabel -> currentAlarmState = currentAlarmState.copy(label = newLabel.ifBlank { null }) },
                         onRepeatingDaysChange = { newDays -> currentAlarmState = currentAlarmState.copy(repeatingDays = newDays) },
-                        onSoundClick = { showSoundSelectionDialogFor = currentAlarmState },
+                        onSoundChange = { /* TODO: Implement sound selection */ },
                         onVibrateChange = { vibrate -> currentAlarmState = currentAlarmState.copy(vibrate = vibrate) },
                         onRuleClick = { // Show rule selection dialog when rule section is clicked
                             selectedAlarmForRules = currentAlarmState
@@ -323,36 +301,6 @@ fun AlarmScreen(
             )
         }
         // ---------------------------
-
-        // --- Label Edit Dialog ---
-        showLabelEditDialogFor?.let { alarmToEdit ->
-            LabelEditDialog(
-                initialLabel = alarmToEdit.label ?: "",
-                onDismiss = { showLabelEditDialogFor = null },
-                onSave = { newLabel ->
-                    val index = alarms.indexOfFirst { it.id == alarmToEdit.id }
-                    if (index != -1) {
-                        alarms[index] = alarms[index].copy(label = newLabel.ifBlank { null })
-                    }
-                }
-            )
-        }
-        // -------------------------
-
-        // --- Sound Selection Dialog ---
-        showSoundSelectionDialogFor?.let { alarmToEdit ->
-            SoundSelectionDialog(
-                initialSound = alarmToEdit.sound,
-                onDismiss = { showSoundSelectionDialogFor = null },
-                onSoundSelected = { newSound ->
-                    val index = alarms.indexOfFirst { it.id == alarmToEdit.id }
-                    if (index != -1) {
-                        alarms[index] = alarms[index].copy(sound = newSound)
-                    }
-                }
-            )
-        }
-        // ----------------------------
     }
 }
 
@@ -363,9 +311,9 @@ fun AlarmItem(
     onToggleExpand: () -> Unit,
     onToggleEnable: (Boolean) -> Unit,
     onDelete: () -> Unit,
-    onLabelClick: () -> Unit, // Changed from onLabelChange
+    onLabelChange: (String) -> Unit,
     onRepeatingDaysChange: (Set<DayOfWeek>) -> Unit,
-    onSoundClick: () -> Unit, // Changed from onSoundChange
+    onSoundChange: (String) -> Unit, // Placeholder
     onVibrateChange: (Boolean) -> Unit,
     onRuleClick: () -> Unit // Callback when the rule section is clicked
 ) {
@@ -472,8 +420,8 @@ fun AlarmItem(
                 // Other Options (Assuming AlarmOptionItem exists)
                 // Use the correct AlarmOptionItem definition (assuming one from preview or shared components)
                 // Example using the one with 'checked'
-                AlarmOptionItem(icon = Icons.Default.Label, text = alarm.label ?: "Add Label", onClick = onLabelClick)
-                AlarmOptionItem(icon = Icons.Default.MusicNote, text = alarm.sound, onClick = onSoundClick)
+                AlarmOptionItem(icon = Icons.Default.Label, text = alarm.label ?: "Add Label", onClick = { /* TODO: Show Label Dialog */ onLabelChange(alarm.label ?: "") })
+                AlarmOptionItem(icon = Icons.Default.MusicNote, text = alarm.sound, onClick = { onSoundChange(alarm.sound) /* TODO: Show Sound Picker */ })
                 AlarmOptionItem(icon = Icons.Default.Vibration, text = "Vibrate") {
                     Switch(checked = alarm.vibrate, onCheckedChange = { onVibrateChange(!alarm.vibrate) })
                 }
@@ -569,92 +517,6 @@ fun RuleSelectionDialog(
         )
     }
 }
-
-
-// --- Composable for the Label Editing Dialog ---
-@Composable
-fun SoundSelectionDialog(
-    initialSound: String,
-    onDismiss: () -> Unit,
-    onSoundSelected: (String) -> Unit
-) {
-    val soundOptions = listOf("Default (Cesium)", "Zen", "Waves", "Uplift", "Serene")
-    var selectedSound by remember { mutableStateOf(initialSound) }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Select sound") },
-        text = {
-            LazyColumn {
-                items(soundOptions) { sound ->
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { selectedSound = sound }
-                            .padding(vertical = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        RadioButton(
-                            selected = (sound == selectedSound),
-                            onClick = { selectedSound = sound }
-                        )
-                        Spacer(Modifier.width(16.dp))
-                        Text(sound)
-                    }
-                }
-            }
-        },
-        confirmButton = {
-            Button(onClick = {
-                onSoundSelected(selectedSound)
-                onDismiss()
-            }) {
-                Text("OK")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancel")
-            }
-        }
-    )
-}
-
-@Composable
-fun LabelEditDialog(
-    initialLabel: String,
-    onDismiss: () -> Unit,
-    onSave: (String) -> Unit
-) {
-    var text by remember { mutableStateOf(initialLabel) }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Set alarm label") },
-        text = {
-            OutlinedTextField(
-                value = text,
-                onValueChange = { text = it },
-                label = { Text("Label") },
-                modifier = Modifier.fillMaxWidth()
-            )
-        },
-        confirmButton = {
-            Button(onClick = {
-                onSave(text)
-                onDismiss()
-            }) {
-                Text("Save")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancel")
-            }
-        }
-    )
-}
-
 
 // --- Time Picker Dialog Wrapper --- (Helper Composable)
 @OptIn(ExperimentalMaterial3Api::class)
