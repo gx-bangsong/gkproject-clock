@@ -55,7 +55,8 @@ android {
             it.jvmArgs(
                 "--add-opens=java.base/java.lang=ALL-UNNAMED",
                 "--add-opens=java.base/java.util=ALL-UNNAMED",
-                "--add-opens=java.base/java.time=ALL-UNNAMED"
+
+            "--add-opens=java.base/java.time=ALL-UNNAMED" // <-- Add this line
             )
         }
     }
@@ -96,7 +97,8 @@ dependencies {
     implementation("androidx.test:rules:1.6.1")// Use the latest stable version if needed
     // 使用已定义的 junit 版本
     testImplementation(libs.junit)
-    testImplementation(libs.mockito.kotlin)
+    testImplementation(libs.mockito.core)
+    testImplementation(libs.mockito.kotlin) // 追加
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(platform(libs.androidx.compose.bom))

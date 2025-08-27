@@ -8,22 +8,25 @@ on:
 
 jobs:
   build:
-
     runs-on: ubuntu-latest
-
     steps:
-    - uses: actions/checkout@v4
-    - name: set up JDK 17
-      uses: actions/setup-java@v4
-      with:
-        java-version: '17'
-        distribution: 'temurin'
-        cache: gradle
+      - uses: actions/checkout@v4
 
-    - name: Setup Android SDK
-      uses: android-actions/setup-android@v3
+      # Explicitly delete the Gradle cache to ensure a fresh build
+      - name: Delete Gradle Cache
+        run: rm -rf ~/.gradle/caches/
 
-    - name: Grant execute permission for gradlew
-      run: chmod +x gradlew
-    - name: Build with Gradle
-      run: ./gradlew build
+      - name: set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          # Remove the 'cache: gradle' option to prevent caching issues
+          # cache: gradle
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      - name: Build with Gradle
+        # Add --rerun-tasks to force all tasks to be executed from scratch
+        run: ./gradlew build --info --stacktrace
