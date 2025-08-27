@@ -1,6 +1,7 @@
 package com.gkprojct.clock
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.app.Notification
 import android.content.BroadcastReceiver
 import android.content.Context
@@ -124,6 +125,7 @@ class AlarmReceiver : BroadcastReceiver() {
         }
     }
 
+    @SuppressLint("MissingPermission")
     private fun showNotification(context: Context) {
         val notification = createNotification(context)
         val notificationManager = NotificationManagerCompat.from(context)

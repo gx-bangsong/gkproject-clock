@@ -17,7 +17,6 @@ val LocalWindowSize = staticCompositionLocalOf<WindowSizeClass> {
     error("No WindowSizeClass provided")
 }
 
-@RequiresApi(Build.VERSION_CODES.R)
 @SuppressLint("ContextCast")
 @Composable
 fun ClockTheme(
@@ -70,9 +69,15 @@ fun ProvideWindowInsets(content: @Composable () -> Unit) {
 }
 
 // Temporary stub — replace with real logic based on device screen size or WindowMetrics
-@RequiresApi(Build.VERSION_CODES.R)
+@Suppress("DEPRECATION")
 fun calculateWindowSizeClass(activity: ComponentActivity): WindowSizeClass {
-    val metrics = activity.windowManager.currentWindowMetrics
-    val bounds = metrics.bounds
-    return WindowSizeClass(bounds.width(), bounds.height())
+    return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+        val metrics = activity.windowManager.currentWindowMetrics
+        val bounds = metrics.bounds
+        WindowSizeClass(bounds.width(), bounds.height())
+    } else {
+        val displayMetrics = android.util.DisplayMetrics()
+        activity.windowManager.defaultDisplay.getMetrics(displayMetrics)
+        WindowSizeClass(displayMetrics.widthPixels, displayMetrics.heightPixels)
+    }
 }
