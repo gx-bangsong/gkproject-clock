@@ -5,11 +5,13 @@ import android.app.Notification
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
 import android.util.Log
 import android.widget.Toast
-import androidx.annotation.RequiresPermission
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
+import androidx.core.content.ContextCompat
 import com.gkprojct.clock.vm.AppDatabase
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -21,7 +23,6 @@ import java.time.LocalTime
 import java.util.*
 
 class AlarmReceiver : BroadcastReceiver() {
-    @RequiresPermission(Manifest.permission.POST_NOTIFICATIONS)
     override fun onReceive(context: Context, intent: Intent) {
         val pendingResult = goAsync()
         CoroutineScope(Dispatchers.IO).launch {
@@ -29,17 +30,17 @@ class AlarmReceiver : BroadcastReceiver() {
                 val db = AppDatabase.getDatabase(context.applicationContext)
                 val ruleDao = db.ruleDao()
                 val alarmDao = db.alarmDao()
-                val ruleEngine = RuleEngine(context.contentResolver) // Pass ContentResolver
+                val ruleEngine = RuleEngine(context.contentResolver)
 
                 val alarmIdStr = intent.getStringExtra("ALARM_ID")
                 if (alarmIdStr == null) {
-                    withContext(Dispatchers.Main) { showNotification(context) }
+                    Log.e("AlarmReceiver", "Received intent with null ALARM_ID.")
                     return@launch
                 }
                 val alarmId = UUID.fromString(alarmIdStr)
                 val originalAlarmEntity = alarmDao.getAlarmById(alarmId)
                 if (originalAlarmEntity == null) {
-                     withContext(Dispatchers.Main) { showNotification(context) }
+                    Log.e("AlarmReceiver", "Original alarm not found for ID: $alarmIdStr")
                     return@launch
                 }
 
@@ -96,9 +97,15 @@ class AlarmReceiver : BroadcastReceiver() {
 
                 // Reschedule repeating alarms
                 if (originalAlarmEntity.repeatingDays.isNotEmpty()) {
+                        val nextAlarmCalendar = Calendar.getInstance().apply {
+                            timeInMillis = originalAlarmEntity.timeInMillis
+                        }
+                        // Advance to the next occurrence
+                        nextAlarmCalendar.add(Calendar.DAY_OF_YEAR, 1)
+
                         val originalAlarm = Alarm(
                             id = originalAlarmEntity.id,
-                            time = Calendar.getInstance().apply { timeInMillis = originalAlarmEntity.timeInMillis },
+                            time = nextAlarmCalendar,
                             label = originalAlarmEntity.label,
                             isEnabled = originalAlarmEntity.isEnabled,
                             repeatingDays = originalAlarmEntity.repeatingDays,
@@ -107,7 +114,7 @@ class AlarmReceiver : BroadcastReceiver() {
                             appliedRules = originalAlarmEntity.appliedRules
                         )
                         AlarmScheduler.schedule(context, originalAlarm)
-                        Log.d("AlarmReceiver", "Rescheduled repeating alarm: ${originalAlarm.label}")
+                        Log.d("AlarmReceiver", "Rescheduled repeating alarm: ${originalAlarm.label} for ${nextAlarmCalendar.time}")
                     }
             } finally {
                 pendingResult.finish()
@@ -116,6 +123,13 @@ class AlarmReceiver : BroadcastReceiver() {
     }
 
     private fun showNotification(context: Context) {
+        // 在调用 notify() 前检查 POST_NOTIFICATIONS 权限
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+            Log.w("AlarmReceiver", "Notification permission not granted. Cannot show notification.")
+            return
+        }
+
         val notification = createNotification(context)
         val notificationManager = NotificationManagerCompat.from(context)
         notificationManager.notify(AlarmService.NOTIFICATION_ID, notification)
