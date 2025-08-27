@@ -29,4 +29,4 @@ jobs:
 
       - name: Build with Gradle
         # Add --rerun-tasks to force all tasks to be executed from scratch
-        run: ./gradlew build --rerun-tasks
+        run: ./gradlew build --info --stacktrace
