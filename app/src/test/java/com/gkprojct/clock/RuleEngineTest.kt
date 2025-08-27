@@ -17,7 +17,7 @@ import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.temporal.ChronoUnit
 import java.util.*
-import com.gkprojct.clock.evaluateRules
+import com.gkprojct.clock.evaluate
 
 @RunWith(MockitoJUnitRunner::class)
 class RuleEngineTest {
@@ -35,14 +35,14 @@ class RuleEngineTest {
     @Test
     fun `evaluateRules with AlwaysTrue returns correct action`() {
         val rule = createTestRule(criteria = RuleCriteria.AlwaysTrue)
-        val result = ruleEngine.evaluateRules(listOf(rule), LocalDateTime.now())
+        val result = ruleEngine.evaluate(listOf(rule), LocalDateTime.now())
         assertEquals(rule.action, result)
     }
 
     @Test
     fun `evaluateRules with disabled rule returns null`() {
         val rule = createTestRule(enabled = false, criteria = RuleCriteria.AlwaysTrue)
-        val result = ruleEngine.evaluateRules(listOf(rule), LocalDateTime.now())
+        val result = ruleEngine.evaluate(listOf(rule), LocalDateTime.now())
         assertNull(result)
     }
 
@@ -50,7 +50,7 @@ class RuleEngineTest {
     fun `evaluateRules with BasedOnTime returns correct action when within time range`() {
         val rule = createTestRule(criteria = RuleCriteria.BasedOnTime(LocalTime.of(8, 0), LocalTime.of(17, 0)))
         val evaluationTime = LocalDateTime.parse("2023-10-27T10:00:00")
-        val result = ruleEngine.evaluateRules(listOf(rule), evaluationTime)
+        val result = ruleEngine.evaluate(listOf(rule), evaluationTime)
         assertEquals(rule.action, result)
     }
 
@@ -75,7 +75,7 @@ fun `evaluateRules with IfCalendarEventExists returns correct action for matchin
 
     `when`(mockContentResolver.query(any(), any(), any(), any(), anyOrNull())).thenReturn(mockCursor)
 
-    val result = ruleEngine.evaluateRules(listOf(rule), LocalDateTime.now())
+    val result = ruleEngine.evaluate(listOf(rule), LocalDateTime.now())
     assertEquals(rule.action, result)
 }
 
@@ -89,12 +89,12 @@ fun `evaluateRules with IfCalendarEventExists returns correct action for matchin
         //`when`(mockContentResolver.query(any(), any(), any(), any(), anyOrNull())).thenReturn(null)
 
         val evaluationTime = startDate.plus(1, ChronoUnit.DAYS)
-        val result = ruleEngine.evaluateRules(listOf(rule), LocalDateTime.ofInstant(evaluationTime, java.time.ZoneId.systemDefault()))
+        val result = ruleEngine.evaluate(listOf(rule), LocalDateTime.ofInstant(evaluationTime, java.time.ZoneId.systemDefault()))
         assertEquals(rule.action, result)
     }
 
     @Test
-    fun `evaluateRules with ShiftWork returns null for off day`() {
+    fun `evaluate with ShiftWork returns null for off day`() {
         val startDate = Instant.now().minus(2, ChronoUnit.DAYS)
         // Add currentShiftIndex
         val criteria = RuleCriteria.ShiftWork(cycleDays = 4, shiftsPerCycle = 2, startDate = startDate.toEpochMilli(), currentShiftIndex = 0)
@@ -103,7 +103,7 @@ fun `evaluateRules with IfCalendarEventExists returns correct action for matchin
         //`when`(mockContentResolver.query(any(), any(), any(), any(), anyOrNull())).thenReturn(null)
 
         val evaluationTime = startDate.plus(3, ChronoUnit.DAYS)
-        val result = ruleEngine.evaluateRules(listOf(rule), LocalDateTime.ofInstant(evaluationTime, java.time.ZoneId.systemDefault()))
+        val result = ruleEngine.evaluate(listOf(rule), LocalDateTime.ofInstant(evaluationTime, java.time.ZoneId.systemDefault()))
         assertNull(result)
     }
 
@@ -123,7 +123,7 @@ fun `evaluateRules with ShiftWork returns null on a holiday with NORMAL_SCHEDULE
 
     `when`(mockContentResolver.query(any(), any(), any(), any(), anyOrNull())).thenReturn(mockCursor)
 
-    val result = ruleEngine.evaluateRules(listOf(rule), LocalDateTime.ofInstant(today, java.time.ZoneId.systemDefault()))
+    val result = ruleEngine.evaluate(listOf(rule), LocalDateTime.ofInstant(today, java.time.ZoneId.systemDefault()))
     assertNull(result)
 }
 
