@@ -1,6 +1,7 @@
 package com.gkprojct.clock
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.app.Notification
 import android.content.BroadcastReceiver
 import android.content.Context
@@ -122,6 +123,7 @@ class AlarmReceiver : BroadcastReceiver() {
         }
     }
 
+    @SuppressLint("MissingPermission")
     private fun showNotification(context: Context) {
         // 在调用 notify() 前检查 POST_NOTIFICATIONS 权限
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
