@@ -48,6 +48,9 @@ sealed class RuleCriteria {
         val holidayCalendarIds: Set<Long> = emptySet(),
         val holidayHandling: HolidayHandlingStrategy = HolidayHandlingStrategy.NORMAL_SCHEDULE
     ) : RuleCriteria()
+    data class FreeShift(
+        val workDays: Set<Long> // Set of epoch days for work
+    ) : RuleCriteria()
 }
 
 // --- 辅助函数：将 RuleCriteria 转换为摘要字符串 ---
@@ -66,6 +69,9 @@ fun RuleCriteria.toSummaryString(): String {
         }
         is RuleCriteria.ShiftWork -> {
             "轮班制: ${cycleDays}天 / ${shiftsPerCycle}班"
+        }
+        is RuleCriteria.FreeShift -> {
+            "自由排班: 已选择 ${workDays.size} 天"
         }
     }
 }

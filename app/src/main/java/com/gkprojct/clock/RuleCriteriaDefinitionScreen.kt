@@ -11,6 +11,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import java.time.Instant
@@ -19,6 +21,7 @@ import java.time.LocalTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.format.DateTimeParseException
+import java.time.temporal.ChronoUnit
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -47,13 +50,18 @@ fun RuleCriteriaDefinitionScreen(
         mutableStateOf(if (initialCriteria is RuleCriteria.ShiftWork) initialCriteria.holidayCalendarIds else emptySet())
     }
 
+    var freeShiftDaysText by remember { mutableStateOf("30") }
+    val initialWorkDays = if (initialCriteria is RuleCriteria.FreeShift) initialCriteria.workDays else emptySet()
+    var freeShiftWorkDays by remember { mutableStateOf(initialWorkDays) }
+
 
     val criteriaTypesWithDescription = remember {
         listOf(
             CriteriaTypeInfo(RuleCriteria.AlwaysTrue, "始终启用", "规则将始终处于启用状态"),
             CriteriaTypeInfo(RuleCriteria.IfCalendarEventExists(emptyList(), 0, false), "基于日历事件", "当选定日历中存在匹配事件时触发"),
             CriteriaTypeInfo(RuleCriteria.BasedOnTime(LocalTime.MIDNIGHT, LocalTime.MIDNIGHT), "基于时间段", "在特定时间段内触发"),
-            CriteriaTypeInfo(RuleCriteria.ShiftWork(4, 2, System.currentTimeMillis(), 0), "轮班制", "根据轮班周期触发")
+            CriteriaTypeInfo(RuleCriteria.ShiftWork(4, 2, System.currentTimeMillis(), 0), "轮班制", "根据轮班周期触发"),
+            CriteriaTypeInfo(RuleCriteria.FreeShift(emptySet()), "自由排班", "手动选择未来的工作日")
         )
     }
 
@@ -83,6 +91,7 @@ fun RuleCriteriaDefinitionScreen(
                                         RuleCriteria.ShiftWork(cycleDays, shiftsPerCycle, shiftStartDate.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli(), 0, holidayCalendarIds, shiftWorkHolidayHandling)
                                     } else { null }
                                 }
+                                is RuleCriteria.FreeShift -> RuleCriteria.FreeShift(freeShiftWorkDays)
                                 else -> currentCriteriaType
                             }
                             criteriaToSave?.let { onCriteriaSelected(it) }
@@ -168,6 +177,54 @@ fun RuleCriteriaDefinitionScreen(
                             },
                             dismissButton = { TextButton(onClick = { showDatePicker = false }) { Text("取消") } }
                         ) { DatePicker(state = datePickerState) }
+                    }
+                }
+                is RuleCriteria.FreeShift -> {
+                    OutlinedTextField(
+                        value = freeShiftDaysText,
+                        onValueChange = { freeShiftDaysText = it },
+                        label = { Text("排班天数") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(Modifier.height(16.dp))
+                    Text("选择要响铃的日期", style = MaterialTheme.typography.titleMedium)
+                    Spacer(Modifier.height(8.dp))
+
+                    val daysToShow = freeShiftDaysText.toIntOrNull()?.coerceAtLeast(1) ?: 30
+                    val today = LocalDate.now()
+                    val dates = remember(daysToShow) { List(daysToShow) { today.plusDays(it.toLong()) } }
+
+                    LazyColumn(modifier = Modifier.fillMaxWidth()) {
+                        items(dates) { date ->
+                            val isWorkDay = freeShiftWorkDays.contains(date.toEpochDay())
+                            Row(
+                                modifier = Modifier.fillMaxWidth().clickable {
+                                    freeShiftWorkDays = if (isWorkDay) {
+                                        freeShiftWorkDays - date.toEpochDay()
+                                    } else {
+                                        freeShiftWorkDays + date.toEpochDay()
+                                    }
+                                }.padding(vertical = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(
+                                    text = date.format(DateTimeFormatter.ofPattern("M月d日, EEE")),
+                                    style = MaterialTheme.typography.bodyLarge
+                                )
+                                Switch(
+                                    checked = isWorkDay,
+                                    onCheckedChange = {
+                                        freeShiftWorkDays = if (it) {
+                                            freeShiftWorkDays + date.toEpochDay()
+                                        } else {
+                                            freeShiftWorkDays - date.toEpochDay()
+                                        }
+                                    }
+                                )
+                            }
+                        }
                     }
                 }
                 else -> {}

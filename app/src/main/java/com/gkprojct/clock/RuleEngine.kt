@@ -28,6 +28,10 @@ class RuleEngine(private val contentResolver: ContentResolver) {
             is RuleCriteria.ShiftWork -> {
                 checkShiftWork(criteria, evaluationTime)
             }
+            is RuleCriteria.FreeShift -> {
+                val evaluationEpochDay = evaluationTime.atZone(ZoneId.systemDefault()).toLocalDate().toEpochDay()
+                evaluationEpochDay in criteria.workDays
+            }
         }
     }
 
