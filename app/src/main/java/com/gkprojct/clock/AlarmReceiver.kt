@@ -56,8 +56,7 @@ class AlarmReceiver : BroadcastReceiver() {
                             enabled = ruleEntity.enabled,
                             targetAlarmIds = ruleEntity.targetAlarmIds,
                             calendarIds = ruleEntity.calendarIds,
-                            criteria = ruleEntity.criteria,
-                            action = ruleEntity.action
+                            criteria = ruleEntity.criteria
                         )
 
                         val evaluationResult = ruleEngine.evaluate(rule, Instant.now())
