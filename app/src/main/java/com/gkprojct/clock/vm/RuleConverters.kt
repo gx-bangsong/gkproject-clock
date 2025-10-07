@@ -95,15 +95,15 @@ class RuleConverters {
 
     @TypeConverter
     fun fromStringList(stringList: List<String>?): String? {
-        return stringList?.let { gson.toJson(it) }
+        return stringList?.joinToString(",")
     }
 
     @TypeConverter
-    fun toStringList(stringListJson: String?): List<String> {
-        if (stringListJson.isNullOrEmpty()) {
-            return emptyList()
+    fun toStringList(stringListCsv: String?): List<String> {
+        return if (stringListCsv.isNullOrEmpty()) {
+            emptyList()
+        } else {
+            stringListCsv.split(',')
         }
-        val type = object : TypeToken<List<String>>() {}.type
-        return gson.fromJson(stringListJson, type)
     }
 }
