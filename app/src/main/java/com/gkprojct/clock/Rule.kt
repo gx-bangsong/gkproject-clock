@@ -22,8 +22,7 @@ data class Rule(
     val enabled: Boolean = true,
     val targetAlarmIds: Set<UUID> = emptySet(),
     val calendarIds: Set<Long> = emptySet(),
-    val criteria: RuleCriteria = RuleCriteria.AlwaysTrue,
-    val action: RuleAction = RuleAction.SkipNextAlarm // Default action
+    val criteria: RuleCriteria = RuleCriteria.AlwaysTrue
 )
 
 // 规则判断条件的密封类
