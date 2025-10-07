@@ -82,4 +82,28 @@ class RuleConverters {
     fun toUri(uriString: String?): Uri? {
         return uriString?.let { Uri.parse(it) }
     }
+
+    @TypeConverter
+    fun fromUUID(uuid: UUID?): String? {
+        return uuid?.toString()
+    }
+
+    @TypeConverter
+    fun toUUID(uuid: String?): UUID? {
+        return uuid?.let { UUID.fromString(it) }
+    }
+
+    @TypeConverter
+    fun fromStringList(stringList: List<String>?): String? {
+        return stringList?.let { gson.toJson(it) }
+    }
+
+    @TypeConverter
+    fun toStringList(stringListJson: String?): List<String> {
+        if (stringListJson.isNullOrEmpty()) {
+            return emptyList()
+        }
+        val type = object : TypeToken<List<String>>() {}.type
+        return gson.fromJson(stringListJson, type)
+    }
 }
