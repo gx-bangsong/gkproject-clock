@@ -7,6 +7,7 @@ import com.gkprojct.clock.RuleCriteria
 import com.gkprojct.clock.RuleCriteriaAdapter
 import java.util.UUID
 import java.time.DayOfWeek
+import android.net.Uri
 
 class RuleConverters {
     // Configure Gson with the custom adapter for handling the sealed class hierarchy
@@ -70,5 +71,15 @@ class RuleConverters {
         }
         val type = object : TypeToken<Set<DayOfWeek>>() {}.type
         return gson.fromJson(dayOfWeekSetJson, type)
+    }
+
+    @TypeConverter
+    fun fromUri(uri: Uri?): String? {
+        return uri?.toString()
+    }
+
+    @TypeConverter
+    fun toUri(uriString: String?): Uri? {
+        return uriString?.let { Uri.parse(it) }
     }
 }
