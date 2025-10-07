@@ -67,6 +67,13 @@ val bottomNavItems = listOf(
     BottomNavItem("Bedtime", Icons.Default.KingBed) // Or NightsStay
 )
 
+// --- New: Result of a rule evaluation ---
+sealed class RuleEvaluationResult {
+    object SkipAlarm : RuleEvaluationResult()
+    object TriggerAlarm : RuleEvaluationResult()
+    data class OverrideAlarmTime(val newTime: LocalTime) : RuleEvaluationResult()
+}
+
 
 // --- Shared Composable Functions ---
 

@@ -11,26 +11,65 @@ import java.time.temporal.ChronoUnit
 
 class RuleEngine(private val contentResolver: ContentResolver) {
 
-    fun evaluate(rule: Rule, evaluationTime: Instant): Boolean {
+    fun evaluate(rule: Rule, evaluationTime: Instant): RuleEvaluationResult {
         if (!rule.enabled) {
-            return false
+            return RuleEvaluationResult.SkipAlarm
         }
 
         return when (val criteria = rule.criteria) {
-            is RuleCriteria.AlwaysTrue -> true
+            is RuleCriteria.AlwaysTrue -> RuleEvaluationResult.TriggerAlarm
             is RuleCriteria.BasedOnTime -> {
                 val evaluationLocalTime = evaluationTime.atZone(ZoneId.systemDefault()).toLocalTime()
-                !evaluationLocalTime.isBefore(criteria.startTime) && !evaluationLocalTime.isAfter(criteria.endTime)
+                if (!evaluationLocalTime.isBefore(criteria.startTime) && !evaluationLocalTime.isAfter(criteria.endTime)) {
+                    RuleEvaluationResult.TriggerAlarm
+                } else {
+                    RuleEvaluationResult.SkipAlarm
+                }
             }
             is RuleCriteria.IfCalendarEventExists -> {
-                checkCalendarEvents(rule.calendarIds, criteria, evaluationTime)
+                if (checkCalendarEvents(rule.calendarIds, criteria, evaluationTime)) {
+                    RuleEvaluationResult.TriggerAlarm
+                } else {
+                    RuleEvaluationResult.SkipAlarm
+                }
             }
             is RuleCriteria.ShiftWork -> {
-                checkShiftWork(criteria, evaluationTime)
+                val evaluationDate = evaluationTime.atZone(ZoneId.systemDefault()).toLocalDate()
+                val evaluationEpochDay = evaluationDate.toEpochDay()
+
+                // 1. Check for a specific exception for this day
+                criteria.exceptions[evaluationEpochDay]?.let { exception ->
+                    return when (exception) {
+                        is RuleException.OffDay -> RuleEvaluationResult.SkipAlarm
+                        is RuleException.CustomTime -> RuleEvaluationResult.OverrideAlarmTime(exception.time)
+                    }
+                }
+
+                // 2. If no exception, evaluate the standard shift work rule
+                if (checkShiftWork(criteria, evaluationTime)) {
+                    RuleEvaluationResult.TriggerAlarm
+                } else {
+                    RuleEvaluationResult.SkipAlarm
+                }
             }
             is RuleCriteria.FreeShift -> {
-                val evaluationEpochDay = evaluationTime.atZone(ZoneId.systemDefault()).toLocalDate().toEpochDay()
-                evaluationEpochDay in criteria.workDays
+                val evaluationDate = evaluationTime.atZone(ZoneId.systemDefault()).toLocalDate()
+                val evaluationEpochDay = evaluationDate.toEpochDay()
+
+                // 1. Check for a specific exception for this day
+                criteria.exceptions[evaluationEpochDay]?.let { exception ->
+                    return when (exception) {
+                        is RuleException.OffDay -> RuleEvaluationResult.SkipAlarm
+                        is RuleException.CustomTime -> RuleEvaluationResult.OverrideAlarmTime(exception.time)
+                    }
+                }
+
+                // 2. If no exception, check if it's a designated workday
+                if (evaluationEpochDay in criteria.workDays) {
+                    RuleEvaluationResult.TriggerAlarm
+                } else {
+                    RuleEvaluationResult.SkipAlarm
+                }
             }
         }
     }

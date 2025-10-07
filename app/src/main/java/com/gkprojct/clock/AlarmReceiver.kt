@@ -60,45 +60,53 @@ class AlarmReceiver : BroadcastReceiver() {
                             action = ruleEntity.action
                         )
 
-                        if (ruleEngine.evaluate(rule, Instant.now())) {
-                            when (val action = rule.action) {
-                                is RuleAction.SkipNextAlarm -> {
-                                    shouldSkip = true
-                                    break
-                                }
-                                is RuleAction.AdjustAlarmTime -> {
-                                    adjustedTime = action.newTime
-                                }
+                        val evaluationResult = ruleEngine.evaluate(rule, Instant.now())
+                        when (evaluationResult) {
+                            is RuleEvaluationResult.SkipAlarm -> {
+                                shouldSkip = true
+                                break // A skip rule immediately stops further processing
+                            }
+                            is RuleEvaluationResult.OverrideAlarmTime -> {
+                                adjustedTime = evaluationResult.newTime
+                                // Don't break, another rule might also apply and override this one
+                            }
+                            is RuleEvaluationResult.TriggerAlarm -> {
+                                // This rule's conditions are met, but it doesn't change the outcome.
+                                // We can potentially apply a default action here if needed in the future.
                             }
                         }
                     }
 
+                    // Final decision based on the evaluated rules
                     if (shouldSkip) {
                         Log.d("AlarmReceiver", "Alarm ${originalAlarmEntity.label} skipped by a rule.")
+                        // Do nothing, alarm is skipped
                     } else if (adjustedTime != null) {
                         Log.d("AlarmReceiver", "Alarm ${originalAlarmEntity.label} adjusted to $adjustedTime by a rule.")
-                        val originalCalendar = Calendar.getInstance().apply { timeInMillis = originalAlarmEntity.timeInMillis }
-                        val adjustedCalendar = (originalCalendar.clone() as Calendar).apply {
+                        val adjustedCalendar = Calendar.getInstance().apply {
                             set(Calendar.HOUR_OF_DAY, adjustedTime!!.hour)
                             set(Calendar.MINUTE, adjustedTime!!.minute)
                             set(Calendar.SECOND, 0)
                             set(Calendar.MILLISECOND, 0)
                         }
 
+                        // If the adjusted time is in the past for today, schedule it for the same time tomorrow
                         if (adjustedCalendar.before(Calendar.getInstance())) {
                             adjustedCalendar.add(Calendar.DAY_OF_YEAR, 1)
                         }
 
+                        // Schedule a new one-time alarm with the adjusted time
                         val adjustedAlarm = Alarm(
-                            id = UUID.randomUUID(),
+                            id = UUID.randomUUID(), // New ID for the one-time alarm
                             time = adjustedCalendar,
                             label = "${originalAlarmEntity.label} (Adjusted)",
                             isEnabled = true,
-                            repeatingDays = emptySet()
+                            repeatingDays = emptySet() // It's a one-off
                         )
                         AlarmScheduler.schedule(context, adjustedAlarm)
-                        Log.d("AlarmReceiver", "Scheduled adjusted alarm for ${adjustedAlarm.time.time}")
+                        Log.d("AlarmReceiver", "Scheduled one-time adjusted alarm for ${adjustedAlarm.time.time}")
                     } else {
+                        // No rule skipped or adjusted the alarm, so fire it
                         withContext(Dispatchers.Main) {
                             showNotification(context)
                         }

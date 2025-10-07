@@ -32,6 +32,12 @@ enum class HolidayHandlingStrategy {
     POSTPONE_SCHEDULE // 假日后按照继续假日前一天的排班
 }
 
+// --- 新增：定义规则的例外情况 ---
+sealed class RuleException {
+    object OffDay : RuleException()
+    data class CustomTime(val time: LocalTime) : RuleException()
+}
+
 sealed class RuleCriteria {
     object AlwaysTrue : RuleCriteria()
     data class IfCalendarEventExists(
@@ -46,10 +52,12 @@ sealed class RuleCriteria {
         val startDate: Long, // Start date of the cycle in millis
         val currentShiftIndex: Int,
         val holidayCalendarIds: Set<Long> = emptySet(),
-        val holidayHandling: HolidayHandlingStrategy = HolidayHandlingStrategy.NORMAL_SCHEDULE
+        val holidayHandling: HolidayHandlingStrategy = HolidayHandlingStrategy.NORMAL_SCHEDULE,
+        val exceptions: Map<Long, RuleException> = emptyMap() // Map of epoch day to exception
     ) : RuleCriteria()
     data class FreeShift(
-        val workDays: Set<Long> // Set of epoch days for work
+        val workDays: Set<Long>, // Set of epoch days for work
+        val exceptions: Map<Long, RuleException> = emptyMap() // Map of epoch day to exception
     ) : RuleCriteria()
 }
 
@@ -68,10 +76,12 @@ fun RuleCriteria.toSummaryString(): String {
             "时间范围: ${startTime.format(formatter)} - ${endTime.format(formatter)}"
         }
         is RuleCriteria.ShiftWork -> {
-            "轮班制: ${cycleDays}天 / ${shiftsPerCycle}班"
+            val exceptionSummary = if (exceptions.isNotEmpty()) ", ${exceptions.size}个例外" else ""
+            "轮班制: ${cycleDays}天 / ${shiftsPerCycle}班$exceptionSummary"
         }
         is RuleCriteria.FreeShift -> {
-            "自由排班: 已选择 ${workDays.size} 天"
+            val exceptionSummary = if (exceptions.isNotEmpty()) ", ${exceptions.size}个例外" else ""
+            "自由排班: 已选 ${workDays.size} 天$exceptionSummary"
         }
     }
 }
