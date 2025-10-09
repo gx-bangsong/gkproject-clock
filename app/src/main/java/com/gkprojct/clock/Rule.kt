@@ -25,12 +25,6 @@ enum class HolidayHandlingStrategy {
     POSTPONE_SCHEDULE
 }
 
-// --- Sealed Class for Rule Actions ---
-sealed class RuleAction {
-    object SkipNextAlarm : RuleAction()
-    data class AdjustAlarmTime(val newTime: LocalTime) : RuleAction()
-}
-
 // --- Sealed Class for Rule Criteria ---
 sealed class RuleCriteria {
     object AlwaysTrue : RuleCriteria()
