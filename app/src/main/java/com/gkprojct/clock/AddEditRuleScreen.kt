@@ -5,10 +5,24 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.ChevronRight
-import androidx.compose.material.icons.filled.Save
-import androidx.compose.material3.*
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.RadioButton
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Switch
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TimePicker
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -18,8 +32,12 @@ import androidx.compose.ui.unit.dp
 import java.util.UUID
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.MutableStateFlow
+import com.gkprojct.clock.RuleAction
 import com.gkprojct.clock.vm.RuleDao
 import com.gkprojct.clock.vm.RuleEntity
+import java.time.LocalTime
+import java.time.format.DateTimeFormatter
+import java.time.format.FormatStyle
 
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -39,18 +57,22 @@ fun AddEditRuleScreen(
     var selectedCalendarIds by remember { mutableStateOf(initialRule?.calendarIds ?: emptySet()) }
     var selectedAlarmIds by remember { mutableStateOf(initialRule?.targetAlarmIds ?: emptySet()) }
     var ruleCriteria by remember { mutableStateOf<RuleCriteria>(initialRule?.criteria ?: RuleCriteria.AlwaysTrue) }
+    var ruleAction by remember { mutableStateOf<RuleAction>(initialRule?.action ?: RuleAction.SkipNextAlarm) }
 
     val isEditing = initialRule != null
     val coroutineScope = rememberCoroutineScope()
 
     LaunchedEffect(initialRule) {
         if (isEditing && initialRule != null) {
-            ruleName = initialRule.name
-            ruleDescription = initialRule.description
-            ruleEnabled = initialRule.enabled
-            selectedCalendarIds = initialRule.calendarIds
-            selectedAlarmIds = initialRule.targetAlarmIds
-            ruleCriteria = initialRule.criteria
+            ruleViewModel.getRuleById(initialRule.id)?.let {
+                ruleName = it.name
+                ruleDescription = it.description
+                ruleEnabled = it.enabled
+                selectedCalendarIds = it.calendarIds ?: emptySet()
+                selectedAlarmIds = it.targetAlarmIds ?: emptySet()
+                ruleCriteria = it.criteria
+                ruleAction = it.action
+            }
         }
     }
 
@@ -71,7 +93,8 @@ fun AddEditRuleScreen(
                             enabled = ruleEnabled,
                             calendarIds = selectedCalendarIds,
                             targetAlarmIds = selectedAlarmIds,
-                            criteria = ruleCriteria
+                            criteria = ruleCriteria,
+                            action = ruleAction
                         ) ?: Rule(
                             id = UUID.randomUUID(),
                             name = ruleName,
@@ -79,7 +102,8 @@ fun AddEditRuleScreen(
                             enabled = ruleEnabled,
                             targetAlarmIds = selectedAlarmIds,
                             calendarIds = selectedCalendarIds,
-                            criteria = ruleCriteria
+                            criteria = ruleCriteria,
+                            action = ruleAction
                         )
                         ruleViewModel.saveRule(ruleToSave)
                         onSaveRule(ruleToSave)
@@ -137,6 +161,7 @@ fun AddEditRuleScreen(
             HorizontalDivider()
             Spacer(Modifier.height(16.dp))
 
+            // Criteria, Calendars, Alarms sections...
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -185,10 +210,98 @@ fun AddEditRuleScreen(
                 }
                 Icon(Icons.Default.ChevronRight, contentDescription = "定义规则条件")
             }
+
+            Spacer(Modifier.height(16.dp))
+            HorizontalDivider()
+            Spacer(Modifier.height(16.dp))
+
+            // --- Action Selection ---
+            Text("执行操作", style = MaterialTheme.typography.titleMedium)
+            Spacer(Modifier.height(8.dp))
+
+            var showTimePicker by remember { mutableStateOf(false) }
+
+            Row(Modifier.fillMaxWidth().clickable { ruleAction = RuleAction.SkipNextAlarm }, verticalAlignment = Alignment.CenterVertically) {
+                RadioButton(
+                    selected = ruleAction is RuleAction.SkipNextAlarm,
+                    onClick = { ruleAction = RuleAction.SkipNextAlarm }
+                )
+                Spacer(Modifier.width(8.dp))
+                Text("跳过当天闹钟")
+            }
+            Row(Modifier.fillMaxWidth().clickable {
+                if (ruleAction !is RuleAction.AdjustAlarmTime) {
+                    ruleAction = RuleAction.AdjustAlarmTime(LocalTime.now())
+                }
+                showTimePicker = true
+            }, verticalAlignment = Alignment.CenterVertically) {
+                RadioButton(
+                    selected = ruleAction is RuleAction.AdjustAlarmTime,
+                    onClick = {
+                        if (ruleAction !is RuleAction.AdjustAlarmTime) {
+                            ruleAction = RuleAction.AdjustAlarmTime(LocalTime.now())
+                        }
+                        showTimePicker = true
+                    }
+                )
+                Spacer(Modifier.width(8.dp))
+                val actionText = if (ruleAction is RuleAction.AdjustAlarmTime) {
+                    ": " + (ruleAction as RuleAction.AdjustAlarmTime).newTime.format(DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT))
+                } else {
+                    ""
+                }
+                Text("调整闹钟时间$actionText")
+            }
+
+            if (showTimePicker) {
+                val currentTime = if (ruleAction is RuleAction.AdjustAlarmTime) (ruleAction as RuleAction.AdjustAlarmTime).newTime else LocalTime.now()
+                val timePickerState = rememberTimePickerState(initialHour = currentTime.hour, initialMinute = currentTime.minute, is24Hour = true)
+
+                TimePickerDialog(
+                    onDismissRequest = { showTimePicker = false },
+                    confirmButton = {
+                        TextButton(onClick = {
+                            ruleAction = RuleAction.AdjustAlarmTime(LocalTime.of(timePickerState.hour, timePickerState.minute))
+                            showTimePicker = false
+                        }) { Text("确认") }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { showTimePicker = false }) { Text("取消") }
+                    }
+                ) {
+                    TimePicker(state = timePickerState)
+                }
+            }
         }
     }
 }
 
+@Composable
+fun TimePickerDialog(
+    title: String = "Select Time",
+    onDismissRequest: () -> Unit,
+    confirmButton: @Composable () -> Unit,
+    dismissButton: @Composable () -> Unit,
+    content: @Composable () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismissRequest,
+        title = { Text(title) },
+        text = {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                content()
+            }
+        },
+        confirmButton = confirmButton,
+        dismissButton = dismissButton
+    )
+}
+
+
+// --- Preview ---
 @Preview(showBackground = true)
 @Composable
 fun AddEditRuleScreenPreviewAdd() {

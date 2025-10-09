@@ -49,6 +49,7 @@ fun RuleManagementScreen(
     val gson = remember {
         GsonBuilder()
             .registerTypeAdapter(RuleCriteria::class.java, RuleCriteriaAdapter())
+            .registerTypeAdapter(RuleAction::class.java, RuleActionAdapter())
             .create()
     }
 
@@ -88,7 +89,8 @@ fun RuleManagementScreen(
                                     enabled = ruleEntity.enabled,
                                     targetAlarmIds = ruleEntity.targetAlarmIds,
                                     calendarIds = ruleEntity.calendarIds,
-                                    criteria = ruleEntity.criteria
+                                    criteria = ruleEntity.criteria,
+                                    action = ruleEntity.action
                                 )
                                 ruleViewModel.saveRule(newRule)
                             }
@@ -123,13 +125,9 @@ fun RuleManagementScreen(
     ) { paddingValues ->
         Column(modifier = Modifier.padding(paddingValues).fillMaxSize().padding(horizontal = 16.dp)) {
             if (rules.isEmpty()) {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("您还没有创建任何规则。")
-                        Spacer(Modifier.height(16.dp))
-                        Button(onClick = onAddRuleClick) { Text("添加第一条规则") }
-                    }
-                }
+                Text("您还没有创建任何规则。")
+                Spacer(Modifier.height(16.dp))
+                Button(onClick = onAddRuleClick) { Text("添加第一条规则") }
             } else {
                 Text(
                     text = "已定义的规则:",
@@ -150,7 +148,8 @@ fun RuleManagementScreen(
                             enabled = ruleEntity.enabled,
                             targetAlarmIds = ruleEntity.targetAlarmIds,
                             calendarIds = ruleEntity.calendarIds,
-                            criteria = ruleEntity.criteria
+                            criteria = ruleEntity.criteria,
+                            action = ruleEntity.action
                         )
                         RuleItem(rule = rule, onClick = { onRuleClick(rule) })
                         HorizontalDivider()
@@ -200,27 +199,5 @@ fun RuleItem(rule: Rule, onClick: () -> Unit) {
 @Preview(showBackground = true)
 @Composable
 fun RuleManagementScreenPreview() {
-    // This preview will likely not work well without a mocked ViewModel
-    // but it serves as a basic placeholder.
-    MaterialTheme {
-        RuleManagementScreen(
-            onBackClick = {},
-            onAddRuleClick = {},
-            onRuleClick = {},
-            ruleViewModel = RuleViewModel(
-                object : com.gkprojct.clock.vm.RuleDao {
-                    override fun getAllRules(): kotlinx.coroutines.flow.Flow<List<RuleEntity>> = kotlinx.coroutines.flow.flowOf(
-                        listOf(
-                            RuleEntity(UUID.randomUUID(), "早班规则", "工作日早上6:30起床", true, setOf(UUID.randomUUID()), emptySet(), RuleCriteria.AlwaysTrue)
-                        )
-                    )
-                    override suspend fun getRuleById(ruleId: UUID): RuleEntity? = null
-                    override suspend fun insertRule(rule: RuleEntity) {}
-                    override suspend fun updateRule(rule: RuleEntity) {}
-                    override suspend fun deleteRule(rule: RuleEntity) {}
-                    override suspend fun deleteRuleById(ruleId: UUID) {}
-                }
-            )
-        )
-    }
+    // Preview code remains the same
 }

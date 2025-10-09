@@ -34,7 +34,7 @@ fun RuleCriteriaDefinitionScreen(
     initialCriteria: RuleCriteria,
     onBackClick: () -> Unit,
     onCriteriaSelected: (RuleCriteria) -> Unit,
-    onSelectHolidayCalendarsClick: () -> Unit // This is kept for the ShiftWork criteria
+    onSelectHolidayCalendarsClick: () -> Unit
 ) {
     var currentCriteriaType by remember { mutableStateOf(initialCriteria) }
 
@@ -53,19 +53,14 @@ fun RuleCriteriaDefinitionScreen(
     var shiftWorkShiftsPerCycleText by remember { mutableStateOf(if (initialCriteria is RuleCriteria.ShiftWork) initialCriteria.shiftsPerCycle.toString() else "2") }
     var shiftWorkStartDate by remember { mutableStateOf(if (initialCriteria is RuleCriteria.ShiftWork) Instant.ofEpochMilli(initialCriteria.startDate).atZone(ZoneId.systemDefault()).toLocalDate() else LocalDate.now()) }
     var shiftWorkHolidayHandling by remember { mutableStateOf(if (initialCriteria is RuleCriteria.ShiftWork) initialCriteria.holidayHandling else HolidayHandlingStrategy.NORMAL_SCHEDULE) }
-    var shiftWorkExceptions by remember { mutableStateOf(if (initialCriteria is RuleCriteria.ShiftWork) initialCriteria.exceptions else emptyMap()) }
-    val holidayCalendarIds by remember(initialCriteria) {
-        mutableStateOf(if (initialCriteria is RuleCriteria.ShiftWork) initialCriteria.holidayCalendarIds else emptySet())
-    }
+    var shiftWorkOffDays by remember { mutableStateOf(if (initialCriteria is RuleCriteria.ShiftWork) initialCriteria.offDays else emptySet()) }
 
     // State for FreeShift
     var freeShiftWorkDays by remember { mutableStateOf(if (initialCriteria is RuleCriteria.FreeShift) initialCriteria.workDays else emptySet()) }
-    var freeShiftExceptions by remember { mutableStateOf(if (initialCriteria is RuleCriteria.FreeShift) initialCriteria.exceptions else emptyMap()) }
 
     // Common state for multi-selection UI
     var selectedEpochDays by remember { mutableStateOf(emptySet<Long>()) }
     var showDatePicker by remember { mutableStateOf(false) }
-    var showTimePicker by remember { mutableStateOf(false) }
 
     val criteriaTypesWithDescription = remember {
         listOf(
@@ -73,7 +68,7 @@ fun RuleCriteriaDefinitionScreen(
             CriteriaTypeInfo(RuleCriteria.IfCalendarEventExists(emptyList(), 0, false), "基于日历事件", "当选定日历中存在匹配事件时触发"),
             CriteriaTypeInfo(RuleCriteria.BasedOnTime(LocalTime.MIDNIGHT, LocalTime.MIDNIGHT), "基于时间段", "在特定时间段内触发"),
             CriteriaTypeInfo(RuleCriteria.ShiftWork(4, 2, System.currentTimeMillis(), 0), "轮班制", "根据轮班周期触发"),
-            CriteriaTypeInfo(RuleCriteria.FreeShift(emptySet()), "自由排班", "手动选择未来的工作日")
+            CriteriaTypeInfo(RuleCriteria.FreeShift(), "自由排班", "手动选择未来的工作日")
         )
     }
 
@@ -84,7 +79,7 @@ fun RuleCriteriaDefinitionScreen(
                 navigationIcon = { IconButton(onClick = onBackClick) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回") } },
                 actions = {
                     IconButton(onClick = {
-                        val criteriaToSave = when (val criteria = currentCriteriaType) {
+                        val criteriaToSave: RuleCriteria = when (val criteria = currentCriteriaType) {
                             is RuleCriteria.IfCalendarEventExists -> RuleCriteria.IfCalendarEventExists(calendarEventKeywordsText.split(",").map { it.trim() }.filter { it.isNotBlank() }, calendarEventTimeRangeText.toIntOrNull() ?: 0, isAllDayEvent)
                             is RuleCriteria.BasedOnTime -> {
                                 try {
@@ -92,7 +87,7 @@ fun RuleCriteriaDefinitionScreen(
                                     RuleCriteria.BasedOnTime(LocalTime.parse(startTimeText, DateTimeFormatter.ofPattern("HH:mm")), LocalTime.parse(endTimeText, DateTimeFormatter.ofPattern("HH:mm")))
                                 } catch (e: DateTimeParseException) {
                                     timeInputError = "时间格式错误，请使用 HH:mm 格式"
-                                    null
+                                    return@IconButton
                                 }
                             }
                             is RuleCriteria.ShiftWork -> {
@@ -104,15 +99,14 @@ fun RuleCriteriaDefinitionScreen(
                                         shiftsPerCycle = shiftsPerCycle,
                                         startDate = shiftWorkStartDate.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli(),
                                         holidayHandling = shiftWorkHolidayHandling,
-                                        exceptions = shiftWorkExceptions,
-                                        holidayCalendarIds = holidayCalendarIds
+                                        offDays = shiftWorkOffDays
                                     )
-                                } else { null }
+                                } else { return@IconButton }
                             }
-                            is RuleCriteria.FreeShift -> criteria.copy(workDays = freeShiftWorkDays, exceptions = freeShiftExceptions)
+                            is RuleCriteria.FreeShift -> criteria.copy(workDays = freeShiftWorkDays)
                             is RuleCriteria.AlwaysTrue -> RuleCriteria.AlwaysTrue
                         }
-                        criteriaToSave?.let { onCriteriaSelected(it) }
+                        onCriteriaSelected(criteriaToSave)
                     }) { Icon(Icons.Filled.Save, contentDescription = "保存条件") }
                 }
             )
@@ -120,7 +114,6 @@ fun RuleCriteriaDefinitionScreen(
     ) { paddingValues ->
         Column(Modifier.padding(paddingValues).fillMaxHeight()) {
             Column(Modifier.padding(16.dp)) {
-                // Dropdown to select criteria type
                 var expanded by remember { mutableStateOf(false) }
                 ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = !expanded }) {
                     OutlinedTextField(
@@ -138,37 +131,33 @@ fun RuleCriteriaDefinitionScreen(
                                 onClick = {
                                     currentCriteriaType = selection.criteria
                                     expanded = false
-                                    selectedEpochDays = emptySet() // Reset selection when type changes
-                                    if (selection.criteria is RuleCriteria.AlwaysTrue) onCriteriaSelected(selection.criteria)
+                                    selectedEpochDays = emptySet()
                                 }
                             )
                         }
                     }
                 }
-                Spacer(Modifier.height(16.dp))
-                HorizontalDivider()
-                Spacer(Modifier.height(16.dp))
+                Spacer(Modifier.height(8.dp))
             }
 
-            // Main content based on selected criteria
             when (currentCriteriaType) {
                 is RuleCriteria.IfCalendarEventExists -> {
                     Column(modifier = Modifier.padding(horizontal = 16.dp)) {
-                        OutlinedTextField(value = calendarEventKeywordsText, onValueChange = { calendarEventKeywordsText = it }, label = { Text("关键词 (用逗号分隔)") }, modifier = Modifier.fillMaxWidth())
+                        OutlinedTextField(value = calendarEventKeywordsText, onValueChange = { calendarEventKeywordsText = it }, label = { Text("Keywords (comma-separated)") }, modifier = Modifier.fillMaxWidth())
                         Spacer(Modifier.height(16.dp))
-                        OutlinedTextField(value = calendarEventTimeRangeText, onValueChange = { calendarEventTimeRangeText = it }, label = { Text("事件时间范围 (分钟)") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.fillMaxWidth())
+                        OutlinedTextField(value = calendarEventTimeRangeText, onValueChange = { calendarEventTimeRangeText = it }, label = { Text("Event time range (minutes)") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.fillMaxWidth())
                         Spacer(Modifier.height(16.dp))
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Checkbox(checked = isAllDayEvent, onCheckedChange = { isAllDayEvent = it })
-                            Text("全天事件")
+                            Text("All-day event")
                         }
                     }
                 }
                 is RuleCriteria.BasedOnTime -> {
                     Column(modifier = Modifier.padding(horizontal = 16.dp)) {
-                        OutlinedTextField(value = startTimeText, onValueChange = { startTimeText = it }, label = { Text("开始时间 (HH:mm)") }, modifier = Modifier.fillMaxWidth())
+                        OutlinedTextField(value = startTimeText, onValueChange = { startTimeText = it }, label = { Text("Start time (HH:mm)") }, modifier = Modifier.fillMaxWidth())
                         Spacer(Modifier.height(16.dp))
-                        OutlinedTextField(value = endTimeText, onValueChange = { endTimeText = it }, label = { Text("结束时间 (HH:mm)") }, modifier = Modifier.fillMaxWidth())
+                        OutlinedTextField(value = endTimeText, onValueChange = { endTimeText = it }, label = { Text("End time (HH:mm)") }, modifier = Modifier.fillMaxWidth())
                         if (timeInputError != null) {
                             Text(timeInputError!!, color = MaterialTheme.colorScheme.error)
                         }
@@ -176,15 +165,13 @@ fun RuleCriteriaDefinitionScreen(
                 }
                 is RuleCriteria.ShiftWork -> {
                     Column(modifier = Modifier.weight(1f)) {
-                         Column(modifier = Modifier.padding(horizontal = 16.dp)) {
-                            // Inputs for periodic shift
+                        Column(modifier = Modifier.padding(horizontal = 16.dp)) {
                             OutlinedTextField(value = shiftWorkCycleDaysText, onValueChange = { shiftWorkCycleDaysText = it }, label = { Text("轮班周期 (天)") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.fillMaxWidth())
                             Spacer(Modifier.height(8.dp))
                             OutlinedTextField(value = shiftWorkShiftsPerCycleText, onValueChange = { shiftWorkShiftsPerCycleText = it }, label = { Text("周期内班次数") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.fillMaxWidth())
                             Spacer(Modifier.height(8.dp))
                             Button(onClick = { showDatePicker = true }) { Text("选择开始日期: ${shiftWorkStartDate.format(DateTimeFormatter.ofPattern("yyyy-MM-dd"))}") }
-                         }
-                        // Schedule Editor
+                        }
                         ShiftScheduleEditor(
                             modifier = Modifier.weight(1f),
                             scheduleProvider = { days ->
@@ -194,7 +181,7 @@ fun RuleCriteriaDefinitionScreen(
                                     val date = LocalDate.now().plusDays(i.toLong())
                                     val daysBetween = ChronoUnit.DAYS.between(shiftWorkStartDate, date)
                                     val isWorkDay = if (cycle > 0 && daysBetween >= 0) (daysBetween % cycle) < shifts else false
-                                    DateInfo(date, isWorkDay, shiftWorkExceptions[date.toEpochDay()])
+                                    DateInfo(date, isWorkDay, isWorkDay && shiftWorkOffDays.contains(date.toEpochDay()))
                                 }
                             },
                             selectedEpochDays = selectedEpochDays,
@@ -203,31 +190,28 @@ fun RuleCriteriaDefinitionScreen(
                             }
                         )
                     }
-
-                    // Action buttons
                     Column(Modifier.padding(16.dp)) {
-                        ShiftActionButtons(
-                            enabled = selectedEpochDays.isNotEmpty(),
-                            onMarkAsOffDay = {
-                                val newExceptions = shiftWorkExceptions.toMutableMap()
-                                selectedEpochDays.forEach { newExceptions[it] = RuleException.OffDay }
-                                shiftWorkExceptions = newExceptions
+                        Button(
+                            onClick = {
+                                val newOffDays = shiftWorkOffDays.toMutableSet()
+                                selectedEpochDays.forEach {
+                                    if (newOffDays.contains(it)) newOffDays.remove(it) else newOffDays.add(it)
+                                }
+                                shiftWorkOffDays = newOffDays
                                 selectedEpochDays = emptySet()
                             },
-                            onChangeTime = { showTimePicker = true }
-                        )
+                            enabled = selectedEpochDays.isNotEmpty(),
+                            modifier = Modifier.fillMaxWidth()
+                        ) { Text("标记/取消标记为休息日") }
                     }
                 }
                 is RuleCriteria.FreeShift -> {
-                    // Schedule Editor
                     ShiftScheduleEditor(
                         modifier = Modifier.weight(1f),
                         scheduleProvider = { days ->
-                            // Generate schedule based on free shift selection
                             List(days) { i ->
                                 val date = LocalDate.now().plusDays(i.toLong())
-                                val isWorkDay = freeShiftWorkDays.contains(date.toEpochDay())
-                                DateInfo(date, isWorkDay, freeShiftExceptions[date.toEpochDay()])
+                                DateInfo(date, freeShiftWorkDays.contains(date.toEpochDay()), false)
                             }
                         },
                         isWorkDayToggleable = true,
@@ -239,30 +223,15 @@ fun RuleCriteriaDefinitionScreen(
                             selectedEpochDays = if (selectedEpochDays.contains(day)) selectedEpochDays - day else selectedEpochDays + day
                         }
                     )
-
-                    // Action buttons
-                    Column(Modifier.padding(16.dp)) {
-                        ShiftActionButtons(
-                            enabled = selectedEpochDays.isNotEmpty(),
-                            onMarkAsOffDay = {
-                                val newExceptions = freeShiftExceptions.toMutableMap()
-                                selectedEpochDays.forEach { newExceptions[it] = RuleException.OffDay }
-                                freeShiftExceptions = newExceptions
-                                selectedEpochDays = emptySet()
-                            },
-                            onChangeTime = { showTimePicker = true }
-                        )
-                    }
                 }
                 else -> {
-                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Text("选择一个规则条件类型")
+                     Box(modifier = Modifier.fillMaxSize().padding(16.dp), contentAlignment = Alignment.Center) {
+                        Text("This rule is always active and has no settings.")
                     }
                 }
             }
         }
 
-        // --- Dialogs ---
         if (showDatePicker) {
             val datePickerState = rememberDatePickerState(initialSelectedDateMillis = shiftWorkStartDate.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli())
             DatePickerDialog(
@@ -276,42 +245,10 @@ fun RuleCriteriaDefinitionScreen(
                 dismissButton = { TextButton(onClick = { showDatePicker = false }) { Text("取消") } }
             ) { DatePicker(state = datePickerState) }
         }
-
-        if (showTimePicker) {
-            val timePickerState = rememberTimePickerState()
-            TimePickerDialog(
-                onDismissRequest = { showTimePicker = false },
-                confirmButton = {
-                    TextButton(
-                        onClick = {
-                            val newTime = LocalTime.of(timePickerState.hour, timePickerState.minute)
-                            when (currentCriteriaType) {
-                                is RuleCriteria.ShiftWork -> {
-                                    val newExceptions = shiftWorkExceptions.toMutableMap()
-                                    selectedEpochDays.forEach { newExceptions[it] = RuleException.CustomTime(newTime) }
-                                    shiftWorkExceptions = newExceptions
-                                }
-                                is RuleCriteria.FreeShift -> {
-                                    val newExceptions = freeShiftExceptions.toMutableMap()
-                                    selectedEpochDays.forEach { newExceptions[it] = RuleException.CustomTime(newTime) }
-                                    freeShiftExceptions = newExceptions
-                                }
-                                else -> {}
-                            }
-                            selectedEpochDays = emptySet()
-                            showTimePicker = false
-                        }
-                    ) { Text("确认") }
-                },
-                dismissButton = { TextButton(onClick = { showTimePicker = false }) { Text("取消") } }
-            ) {
-                TimePicker(state = timePickerState)
-            }
-        }
     }
 }
 
-data class DateInfo(val date: LocalDate, val isWorkDay: Boolean, val exception: RuleException?)
+data class DateInfo(val date: LocalDate, val isWorkDay: Boolean, val isOffDayOverride: Boolean)
 
 @Composable
 fun ShiftScheduleEditor(
@@ -322,7 +259,7 @@ fun ShiftScheduleEditor(
     isWorkDayToggleable: Boolean = false,
     onWorkDayToggle: (Long, Boolean) -> Unit = { _, _ -> }
 ) {
-    val schedule = remember(scheduleProvider) { scheduleProvider(90) } // Display 90 days
+    val schedule by remember(scheduleProvider) { derivedStateOf { scheduleProvider(90) } }
 
     LazyColumn(modifier = modifier.padding(horizontal = 16.dp)) {
         items(schedule) { dateInfo ->
@@ -347,7 +284,7 @@ fun DateRow(
     onWorkDayToggle: (Boolean) -> Unit
 ) {
     val backgroundColor = if (isSelected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent
-    val isActuallyWorkDay = dateInfo.isWorkDay && dateInfo.exception == null
+    val effectiveWorkDay = dateInfo.isWorkDay && !dateInfo.isOffDayOverride
 
     Row(
         modifier = Modifier
@@ -361,58 +298,18 @@ fun DateRow(
         Text(
             text = dateInfo.date.format(DateTimeFormatter.ofPattern("M月d日, EEE", Locale.getDefault())),
             modifier = Modifier.weight(1f),
-            fontWeight = if (isActuallyWorkDay) FontWeight.Bold else FontWeight.Normal,
-            color = if (isActuallyWorkDay) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant
+            fontWeight = if (effectiveWorkDay) FontWeight.Bold else FontWeight.Normal,
+            color = if (effectiveWorkDay) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant
         )
 
-        when (val exception = dateInfo.exception) {
-            is RuleException.OffDay -> Text("休息", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
-            is RuleException.CustomTime -> Text(exception.time.format(DateTimeFormatter.ofPattern("HH:mm")), color = MaterialTheme.colorScheme.tertiary, fontWeight = FontWeight.Bold)
-            null -> {
-                if (isWorkDayToggleable) {
-                    Switch(checked = dateInfo.isWorkDay, onCheckedChange = onWorkDayToggle)
-                } else if (dateInfo.isWorkDay) {
-                    Text("工作日", fontWeight = FontWeight.Bold)
-                }
-            }
+        if (dateInfo.isOffDayOverride) {
+            Text("休息", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
+        } else if (isWorkDayToggleable) {
+            Switch(checked = dateInfo.isWorkDay, onCheckedChange = onWorkDayToggle)
+        } else if (dateInfo.isWorkDay) {
+            Text("工作日", fontWeight = FontWeight.Bold)
         }
     }
-}
-
-@Composable
-fun ShiftActionButtons(
-    enabled: Boolean,
-    onMarkAsOffDay: () -> Unit,
-    onChangeTime: () -> Unit
-) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        Button(onClick = onMarkAsOffDay, enabled = enabled, modifier = Modifier.weight(1f)) {
-            Text("标记为休息")
-        }
-        Button(onClick = onChangeTime, enabled = enabled, modifier = Modifier.weight(1f)) {
-            Text("修改时间")
-        }
-    }
-}
-
-@Composable
-fun TimePickerDialog(
-    title: String = "选择时间",
-    onDismissRequest: () -> Unit,
-    confirmButton: @Composable () -> Unit,
-    dismissButton: @Composable () -> Unit,
-    content: @Composable () -> Unit,
-) {
-    AlertDialog(
-        onDismissRequest = onDismissRequest,
-        title = { Text(title) },
-        text = content,
-        confirmButton = confirmButton,
-        dismissButton = dismissButton
-    )
 }
 
 data class CriteriaTypeInfo(
@@ -426,13 +323,7 @@ data class CriteriaTypeInfo(
 fun RuleCriteriaDefinitionScreenPreview() {
     MaterialTheme {
         RuleCriteriaDefinitionScreen(
-            initialCriteria = RuleCriteria.FreeShift(
-                workDays = setOf(LocalDate.now().toEpochDay(), LocalDate.now().plusDays(2).toEpochDay()),
-                exceptions = mapOf(
-                    LocalDate.now().plusDays(1).toEpochDay() to RuleException.OffDay,
-                    LocalDate.now().plusDays(3).toEpochDay() to RuleException.CustomTime(LocalTime.of(9, 30))
-                )
-            ),
+            initialCriteria = RuleCriteria.FreeShift(workDays = setOf(LocalDate.now().toEpochDay())),
             onBackClick = {},
             onCriteriaSelected = {},
             onSelectHolidayCalendarsClick = {}

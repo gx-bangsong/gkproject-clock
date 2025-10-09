@@ -2,74 +2,33 @@ package com.gkprojct.clock
 
 import android.content.ContentResolver
 import android.provider.CalendarContract
-import com.gkprojct.clock.HolidayHandlingStrategy
 import java.time.Instant
 import java.time.LocalDate
-import java.time.LocalTime
 import java.time.ZoneId
 import java.time.temporal.ChronoUnit
 
 class RuleEngine(private val contentResolver: ContentResolver) {
 
-    fun evaluate(rule: Rule, evaluationTime: Instant): RuleEvaluationResult {
+    fun evaluate(rule: Rule, evaluationTime: Instant): Boolean {
         if (!rule.enabled) {
-            return RuleEvaluationResult.SkipAlarm
+            return false
         }
 
         return when (val criteria = rule.criteria) {
-            is RuleCriteria.AlwaysTrue -> RuleEvaluationResult.TriggerAlarm
+            is RuleCriteria.AlwaysTrue -> true
             is RuleCriteria.BasedOnTime -> {
                 val evaluationLocalTime = evaluationTime.atZone(ZoneId.systemDefault()).toLocalTime()
-                if (!evaluationLocalTime.isBefore(criteria.startTime) && !evaluationLocalTime.isAfter(criteria.endTime)) {
-                    RuleEvaluationResult.TriggerAlarm
-                } else {
-                    RuleEvaluationResult.SkipAlarm
-                }
+                !evaluationLocalTime.isBefore(criteria.startTime) && !evaluationLocalTime.isAfter(criteria.endTime)
             }
             is RuleCriteria.IfCalendarEventExists -> {
-                if (checkCalendarEvents(rule.calendarIds, criteria, evaluationTime)) {
-                    RuleEvaluationResult.TriggerAlarm
-                } else {
-                    RuleEvaluationResult.SkipAlarm
-                }
+                checkCalendarEvents(rule.calendarIds, criteria, evaluationTime)
             }
             is RuleCriteria.ShiftWork -> {
-                val evaluationDate = evaluationTime.atZone(ZoneId.systemDefault()).toLocalDate()
-                val evaluationEpochDay = evaluationDate.toEpochDay()
-
-                // 1. Check for a specific exception for this day
-                criteria.exceptions[evaluationEpochDay]?.let { exception ->
-                    return when (exception) {
-                        is RuleException.OffDay -> RuleEvaluationResult.SkipAlarm
-                        is RuleException.CustomTime -> RuleEvaluationResult.OverrideAlarmTime(exception.time)
-                    }
-                }
-
-                // 2. If no exception, evaluate the standard shift work rule
-                if (checkShiftWork(criteria, evaluationTime)) {
-                    RuleEvaluationResult.TriggerAlarm
-                } else {
-                    RuleEvaluationResult.SkipAlarm
-                }
+                checkShiftWork(criteria, evaluationTime)
             }
             is RuleCriteria.FreeShift -> {
-                val evaluationDate = evaluationTime.atZone(ZoneId.systemDefault()).toLocalDate()
-                val evaluationEpochDay = evaluationDate.toEpochDay()
-
-                // 1. Check for a specific exception for this day
-                criteria.exceptions[evaluationEpochDay]?.let { exception ->
-                    return when (exception) {
-                        is RuleException.OffDay -> RuleEvaluationResult.SkipAlarm
-                        is RuleException.CustomTime -> RuleEvaluationResult.OverrideAlarmTime(exception.time)
-                    }
-                }
-
-                // 2. If no exception, check if it's a designated workday
-                if (evaluationEpochDay in criteria.workDays) {
-                    RuleEvaluationResult.TriggerAlarm
-                } else {
-                    RuleEvaluationResult.SkipAlarm
-                }
+                val evaluationEpochDay = evaluationTime.atZone(ZoneId.systemDefault()).toLocalDate().toEpochDay()
+                evaluationEpochDay in criteria.workDays
             }
         }
     }
@@ -132,12 +91,18 @@ class RuleEngine(private val contentResolver: ContentResolver) {
     private fun checkShiftWork(criteria: RuleCriteria.ShiftWork, evaluationTime: Instant): Boolean {
         val startDate = Instant.ofEpochMilli(criteria.startDate).atZone(ZoneId.systemDefault()).toLocalDate()
         val evaluationDate = evaluationTime.atZone(ZoneId.systemDefault()).toLocalDate()
+        val evaluationEpochDay = evaluationDate.toEpochDay()
+
+        // 1. Check for manually selected off-days first
+        if (evaluationEpochDay in criteria.offDays) {
+            return false
+        }
 
         if (evaluationDate.isBefore(startDate)) {
             return false
         }
 
-        // If the evaluation date is a holiday, it's not a work day.
+        // 2. If the evaluation date is a holiday, it's not a work day.
         if (isHoliday(evaluationDate, criteria.holidayCalendarIds)) {
             return false
         }

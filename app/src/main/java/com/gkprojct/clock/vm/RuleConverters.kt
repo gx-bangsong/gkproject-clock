@@ -1,109 +1,110 @@
-package com.gkprojct.clock.vm
+package com.gkprojct.clock.vm // <-- **确保包路径正确**
 
 import androidx.room.TypeConverter
-import com.google.gson.GsonBuilder
+import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
-import com.gkprojct.clock.RuleCriteria
-import com.gkprojct.clock.RuleCriteriaAdapter
 import java.util.UUID
+import java.time.LocalTime
 import java.time.DayOfWeek
-import android.net.Uri
 
+// --- 导入 RuleCriteria (从 com.gkprojct.clock 包导入) ---
+import com.gkprojct.clock.RuleAction
+import com.gkprojct.clock.RuleCriteria
+// -----------------------------------------------------
+
+
+// --- Type Converters for Room (Using Gson) ---
+// 用于将 RuleCriteria 和 Set<UUID>/Set<Long>/Set<DayOfWeek> 转换为 Room 可以存储的类型
 class RuleConverters {
-    // Configure Gson with the custom adapter for handling the sealed class hierarchy
-    private val gson = GsonBuilder()
-        .registerTypeAdapter(RuleCriteria::class.java, RuleCriteriaAdapter())
-        .create()
+    private val gson = Gson() // <-- This requires the Gson dependency
 
     @TypeConverter
-    fun fromRuleCriteria(criteria: RuleCriteria?): String? {
-        if (criteria == null) {
-            return null
+    fun fromRuleCriteria(criteria: RuleCriteria): String {
+        val jsonElement = gson.toJsonTree(criteria)
+        if (jsonElement.isJsonObject) {
+            val jsonObject = jsonElement.asJsonObject
+            jsonObject.addProperty("type", criteria::class.java.simpleName)
+            return gson.toJson(jsonObject)
         }
-        return gson.toJson(criteria, RuleCriteria::class.java)
+        return gson.toJson(criteria)
     }
 
     @TypeConverter
-    fun toRuleCriteria(criteriaJson: String?): RuleCriteria? {
-        if (criteriaJson.isNullOrEmpty()) {
-            return null
+    fun toRuleCriteria(criteriaJson: String): RuleCriteria {
+        val jsonObject = gson.fromJson(criteriaJson, com.google.gson.JsonObject::class.java)
+        val type = jsonObject.get("type")?.asString
+        return when (type) {
+            "AlwaysTrue" -> RuleCriteria.AlwaysTrue
+            "IfCalendarEventExists" -> gson.fromJson(criteriaJson, RuleCriteria.IfCalendarEventExists::class.java)
+            "BasedOnTime" -> gson.fromJson(criteriaJson, RuleCriteria.BasedOnTime::class.java)
+            "ShiftWork" -> gson.fromJson(criteriaJson, RuleCriteria.ShiftWork::class.java)
+            else -> RuleCriteria.AlwaysTrue // Default or error
         }
-        return gson.fromJson(criteriaJson, RuleCriteria::class.java)
     }
 
     @TypeConverter
-    fun fromUuidSet(uuidSet: Set<UUID>?): String? {
-        return uuidSet?.let { gson.toJson(it) }
+    fun fromRuleAction(action: RuleAction): String {
+        val jsonElement = gson.toJsonTree(action)
+        if (jsonElement.isJsonObject) {
+            val jsonObject = jsonElement.asJsonObject
+            jsonObject.addProperty("type", action::class.java.simpleName)
+            return gson.toJson(jsonObject)
+        }
+        return gson.toJson(action)
     }
 
     @TypeConverter
-    fun toUuidSet(uuidSetJson: String?): Set<UUID> {
-        if (uuidSetJson.isNullOrEmpty()) {
-            return emptySet()
+    fun toRuleAction(actionJson: String): RuleAction {
+        val jsonObject = gson.fromJson(actionJson, com.google.gson.JsonObject::class.java)
+        val type = jsonObject.get("type")?.asString
+        return when (type) {
+            "SkipNextAlarm" -> RuleAction.SkipNextAlarm
+            "AdjustAlarmTime" -> gson.fromJson(actionJson, RuleAction.AdjustAlarmTime::class.java)
+            else -> RuleAction.SkipNextAlarm // Default or error
         }
+    }
+
+    @TypeConverter
+    fun fromUuidSet(uuidSet: Set<UUID>): String {
+        return gson.toJson(uuidSet)
+    }
+
+    @TypeConverter
+    fun toUuidSet(uuidSetJson: String): Set<UUID> {
         val type = object : TypeToken<Set<UUID>>() {}.type
         return gson.fromJson(uuidSetJson, type)
     }
 
     @TypeConverter
-    fun fromLongSet(longSet: Set<Long>?): String? {
-        return longSet?.let { gson.toJson(it) }
+    fun fromLongSet(longSet: Set<Long>): String {
+        return gson.toJson(longSet)
     }
 
     @TypeConverter
-    fun toLongSet(longSetJson: String?): Set<Long> {
-        if (longSetJson.isNullOrEmpty()) {
-            return emptySet()
-        }
+    fun toLongSet(longSetJson: String): Set<Long> {
         val type = object : TypeToken<Set<Long>>() {}.type
         return gson.fromJson(longSetJson, type)
     }
 
     @TypeConverter
-    fun fromDayOfWeekSet(dayOfWeekSet: Set<DayOfWeek>?): String? {
-        return dayOfWeekSet?.let { gson.toJson(it) }
+    fun fromDayOfWeekSet(dayOfWeekSet: Set<DayOfWeek>): String {
+        return gson.toJson(dayOfWeekSet)
     }
 
     @TypeConverter
-    fun toDayOfWeekSet(dayOfWeekSetJson: String?): Set<DayOfWeek> {
-        if (dayOfWeekSetJson.isNullOrEmpty()) {
-            return emptySet()
-        }
+    fun toDayOfWeekSet(dayOfWeekSetJson: String): Set<DayOfWeek> {
         val type = object : TypeToken<Set<DayOfWeek>>() {}.type
         return gson.fromJson(dayOfWeekSetJson, type)
     }
 
     @TypeConverter
-    fun fromUri(uri: Uri?): String? {
-        return uri?.toString()
+    fun fromStringList(stringList: List<String>): String {
+        return gson.toJson(stringList)
     }
 
     @TypeConverter
-    fun toUri(uriString: String?): Uri? {
-        return uriString?.let { Uri.parse(it) }
-    }
-
-    @TypeConverter
-    fun fromUUID(uuid: UUID?): String? {
-        return uuid?.toString()
-    }
-
-    @TypeConverter
-    fun toUUID(uuid: String?): UUID? {
-        return uuid?.let { UUID.fromString(it) }
-    }
-
-    @TypeConverter
-    fun fromStringList(stringList: List<String>?): String? {
-        return stringList?.joinToString(",")
-    }
-
-    @TypeConverter
-    fun toStringList(stringListCsv: String?): List<String> {
-        return if (stringListCsv.isNullOrEmpty()) {
-            emptyList()
-        } else {
-            stringListCsv.split(',')
-        }
+    fun toStringList(stringListJson: String): List<String> {
+        val type = object : TypeToken<List<String>>() {}.type
+        return gson.fromJson(stringListJson, type)
     }
 }
