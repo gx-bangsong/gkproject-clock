@@ -22,7 +22,7 @@ class RuleViewModel(private val ruleDao: RuleDao) : ViewModel() {
             // allDay パラメータは Rule.kt の RuleCriteria.IfCalendarEventExists で定義
             // マッピング時に allDay を設定
             val criteria = when (entity.criteria) {
-                is RuleCriteria.IfCalendarEventExists -> entity.criteria.copy(allDay = entity.criteria.allDay)
+            is RuleCriteria.IfCalendarEventExists -> entity.criteria.copy(allDay = entity.criteria.allDay) // The fix was already suggested here
                 else -> entity.criteria
             }
             Rule(
