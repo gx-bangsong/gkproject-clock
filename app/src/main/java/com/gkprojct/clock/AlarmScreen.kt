@@ -583,7 +583,7 @@ fun AlarmScreenPreview() {
     val sampleRuleDao = object : com.gkprojct.clock.vm.RuleDao {
         private val sampleRulesFlow = MutableStateFlow(listOf(
             // Ensure RuleCriteria is imported or qualified
-            com.gkprojct.clock.vm.RuleEntity(UUID.randomUUID(), "Holiday Pause", "Pause on holidays", true, emptySet(), setOf(1L), com.gkprojct.clock.RuleCriteria.IfCalendarEventExists(listOf("holiday"), 60), RuleAction.SkipNextAlarm), // Use correct RuleCriteria path
+            com.gkprojct.clock.vm.RuleEntity(UUID.randomUUID(), "Holiday Pause", "Pause on holidays", true, emptySet(), setOf(1L), com.gkprojct.clock.RuleCriteria.IfCalendarEventExists(listOf("holiday"), 60, allDay = true), RuleAction.SkipNextAlarm), // Use correct RuleCriteria path
             com.gkprojct.clock.vm.RuleEntity(UUID.randomUUID(), "No Class Pause", "Pause if no class", false, emptySet(), setOf(2L), com.gkprojct.clock.RuleCriteria.BasedOnTime(LocalTime.of(9,0), LocalTime.of(17,0)), RuleAction.SkipNextAlarm) // Use correct RuleCriteria path
         ))
         override fun getAllRules(): Flow<List<com.gkprojct.clock.vm.RuleEntity>> = sampleRulesFlow
