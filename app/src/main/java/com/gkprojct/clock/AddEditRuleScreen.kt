@@ -113,7 +113,7 @@ fun AddEditRuleScreen(
                     if (isEditing && initialRule != null) {
                         IconButton(onClick = {
                             coroutineScope.launch {
-                                ruleViewModel.deleteRule(initialRule)
+                                ruleViewModel.deleteRule(initialRule.id) // <- ここを修正
                                 onCancel()
                             }
                         }) {
