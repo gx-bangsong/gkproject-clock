@@ -16,7 +16,7 @@ data class Rule(
     val targetAlarmIds: Set<UUID> = emptySet(),
     val calendarIds: Set<Long> = emptySet(),
     val criteria: RuleCriteria = RuleCriteria.AlwaysTrue,
-    val action: RuleAction = RuleAction.SkipNextAlarm // This is kept for the existing architecture
+    val action: RuleAction = RuleAction.SkipNextAlarm
 )
 
 // --- Enum for Holiday Handling ---
@@ -47,7 +47,7 @@ sealed class RuleCriteria {
         val currentShiftIndex: Int,
         val holidayCalendarIds: Set<Long> = emptySet(),
         val holidayHandling: HolidayHandlingStrategy = HolidayHandlingStrategy.NORMAL_SCHEDULE,
-        val offDays: Set<Long> = emptySet() // Safe exception for manually marked off-days
+        val offDays: Set<Long> = emptySet()
     ) : RuleCriteria()
     data class FreeShift(
         val workDays: Set<Long> = emptySet()
