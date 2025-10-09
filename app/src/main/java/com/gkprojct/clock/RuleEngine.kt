@@ -2,10 +2,8 @@ package com.gkprojct.clock
 
 import android.content.ContentResolver
 import android.provider.CalendarContract
-import com.gkprojct.clock.HolidayHandlingStrategy
 import java.time.Instant
 import java.time.LocalDate
-import java.time.LocalTime
 import java.time.ZoneId
 import java.time.temporal.ChronoUnit
 
@@ -93,12 +91,18 @@ class RuleEngine(private val contentResolver: ContentResolver) {
     private fun checkShiftWork(criteria: RuleCriteria.ShiftWork, evaluationTime: Instant): Boolean {
         val startDate = Instant.ofEpochMilli(criteria.startDate).atZone(ZoneId.systemDefault()).toLocalDate()
         val evaluationDate = evaluationTime.atZone(ZoneId.systemDefault()).toLocalDate()
+        val evaluationEpochDay = evaluationDate.toEpochDay()
+
+        // 1. Check for manually selected off-days first
+        if (evaluationEpochDay in criteria.offDays) {
+            return false
+        }
 
         if (evaluationDate.isBefore(startDate)) {
             return false
         }
 
-        // If the evaluation date is a holiday, it's not a work day.
+        // 2. If the evaluation date is a holiday, it's not a work day.
         if (isHoliday(evaluationDate, criteria.holidayCalendarIds)) {
             return false
         }

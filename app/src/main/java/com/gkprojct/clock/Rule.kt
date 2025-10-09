@@ -1,20 +1,9 @@
-package com.gkprojct.clock // <-- Ensure package path is correct
+package com.gkprojct.clock
 
 import java.util.UUID
-import java.time.LocalTime // Import LocalTime
-import java.time.DayOfWeek // Import DayOfWeek
-import java.time.format.DateTimeFormatter // Import DateTimeFormatter
-import java.time.format.TextStyle // Import TextStyle
-import java.util.Locale // Import Locale
-import kotlin.collections.Set // Import Set explicitly if needed, though usually inferred
+import java.time.LocalTime
+import java.time.format.DateTimeFormatter
 
-// --- Import Alarm from the correct file ---
-// Assuming Alarm is defined in AlarmScreen.kt
-import com.gkprojct.clock.Alarm
-
-
-// --- 定义规则的数据结构 (UI Model) ---
-// 这是一个用于 UI 层的规则数据模型
 data class Rule(
     val id: UUID = UUID.randomUUID(),
     val name: String,
@@ -23,13 +12,17 @@ data class Rule(
     val targetAlarmIds: Set<UUID> = emptySet(),
     val calendarIds: Set<Long> = emptySet(),
     val criteria: RuleCriteria = RuleCriteria.AlwaysTrue,
-    val action: RuleAction = RuleAction.SkipNextAlarm // Default action
+    val action: RuleAction = RuleAction.SkipNextAlarm
 )
 
-// 规则判断条件的密封类
 enum class HolidayHandlingStrategy {
-    NORMAL_SCHEDULE, // 假日后依然按照排班规则正常排班
-    POSTPONE_SCHEDULE // 假日后按照继续假日前一天的排班
+    NORMAL_SCHEDULE,
+    POSTPONE_SCHEDULE
+}
+
+sealed class RuleAction {
+    object SkipNextAlarm : RuleAction()
+    data class AdjustAlarmTime(val newTime: LocalTime) : RuleAction()
 }
 
 sealed class RuleCriteria {
@@ -37,41 +30,41 @@ sealed class RuleCriteria {
     data class IfCalendarEventExists(
         val keywords: List<String>,
         val timeRangeMinutes: Int,
-        val allDay: Boolean = false // false for specific time, true for all-day event
+        val allDay: Boolean
     ) : RuleCriteria()
     data class BasedOnTime(val startTime: LocalTime, val endTime: LocalTime) : RuleCriteria()
     data class ShiftWork(
-        val cycleDays: Int, // e.g., 4 days
-        val shiftsPerCycle: Int, // e.g., 2 shifts
-        val startDate: Long, // Start date of the cycle in millis
+        val cycleDays: Int,
+        val shiftsPerCycle: Int,
+        val startDate: Long,
         val currentShiftIndex: Int,
         val holidayCalendarIds: Set<Long> = emptySet(),
-        val holidayHandling: HolidayHandlingStrategy = HolidayHandlingStrategy.NORMAL_SCHEDULE
+        val holidayHandling: HolidayHandlingStrategy = HolidayHandlingStrategy.NORMAL_SCHEDULE,
+        val offDays: Set<Long> = emptySet() // Safe exception for off-days
     ) : RuleCriteria()
     data class FreeShift(
-        val workDays: Set<Long> // Set of epoch days for work
+        val workDays: Set<Long> = emptySet()
     ) : RuleCriteria()
 }
 
-// --- 辅助函数：将 RuleCriteria 转换为摘要字符串 ---
-// This extension function should be defined here with the sealed class
 fun RuleCriteria.toSummaryString(): String {
     return when (this) {
-        is RuleCriteria.AlwaysTrue -> "始终启用"
+        is RuleCriteria.AlwaysTrue -> "Always enabled"
         is RuleCriteria.IfCalendarEventExists -> {
-            val eventType = if (allDay) "全天事件" else "定时事件"
-            val keywordsSummary = if (keywords.isNotEmpty()) "关键词: ${keywords.joinToString()}" else "任何事件"
-            "日历事件: $eventType, $keywordsSummary"
+            val eventType = if (allDay) "all-day event" else "timed event"
+            val keywordsSummary = if (keywords.isNotEmpty()) "keywords: ${keywords.joinToString()}" else "any event"
+            "Calendar event: $eventType, $keywordsSummary"
         }
         is RuleCriteria.BasedOnTime -> {
             val formatter = DateTimeFormatter.ofLocalizedTime(java.time.format.FormatStyle.SHORT)
-            "时间范围: ${startTime.format(formatter)} - ${endTime.format(formatter)}"
+            "Time range: ${startTime.format(formatter)} - ${endTime.format(formatter)}"
         }
         is RuleCriteria.ShiftWork -> {
-            "轮班制: ${cycleDays}天 / ${shiftsPerCycle}班"
+            val exceptionSummary = if (offDays.isNotEmpty()) ", ${offDays.size} off-days" else ""
+            "Periodic Shift: ${cycleDays} days / ${shiftsPerCycle} shifts$exceptionSummary"
         }
         is RuleCriteria.FreeShift -> {
-            "自由排班: 已选择 ${workDays.size} 天"
+            "Free Shift: ${workDays.size} work days"
         }
     }
 }
