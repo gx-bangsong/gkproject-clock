@@ -202,15 +202,35 @@ fun AppContent() {
                         }
                     )
                 }
-            } else if (!isBedtimeSetupComplete) {
-                Box(modifier = Modifier.fillMaxSize()) { Text("Bedtime setup is not complete (Screens Missing)") }
             } else {
                 when (currentScreenIndex) {
                     0 -> AlarmScreen(onSettingsClick = { showSettingsScreen = true }, ruleViewModel = ruleViewModel)
                     1 -> ClockScreen { showSettingsScreen = true }
                     2 -> TimerScreen(timerViewModel = viewModel())
                     3 -> StopwatchScreen(stopwatchViewModel = viewModel())
-                    4 -> BedtimeScreen { showSettingsScreen = true }
+                    4 -> {
+                        if (isBedtimeSetupComplete) {
+                            BedtimeScreen { showSettingsScreen = true }
+                        } else {
+                            when (bedtimeSetupStep) {
+                                0 -> BedtimeIntroScreen(onGetStartedClick = { bedtimeSetupStep = 1 })
+                                1 -> SetWakeUpAlarmScreen(
+                                    onNext = { bedtimeSetupStep = 2 },
+                                    onSkip = { bedtimeSetupStep = 2 }
+                                )
+                                2 -> SetBedtimeScreen(
+                                    onDone = {
+                                        prefs.edit().putBoolean("isBedtimeSetupComplete", true).apply()
+                                        isBedtimeSetupComplete = true
+                                    },
+                                    onSkip = {
+                                        prefs.edit().putBoolean("isBedtimeSetupComplete", true).apply()
+                                        isBedtimeSetupComplete = true
+                                    }
+                                )
+                            }
+                        }
+                    }
                 }
             }
         }
